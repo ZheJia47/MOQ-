@@ -1,0 +1,611 @@
+<template>
+<div class="layout-padding">
+  <section class="content">
+   <div class="row inline bg-light-blue-7 full-width glossy">
+    <div class="col-12 q-pl-xl text-white">
+      <h4>使用者權限設定</h4>
+    </div>
+    </div>
+        <div class="row justify-end q-pt-xs q-pb-xs q-pr-xl text-white bg-light-blue-8 full-width ">
+          <q-btn outline glossy v-if="!$q.fullscreen.isActive"  @click="rz()">
+        <q-icon name="fullscreen" size="36px" />
+        全銀幕
+      </q-btn>
+      <q-btn outline glossy v-else @click="srz()">
+        <q-icon name="fullscreen_exit" size="36px" />
+        退出全銀幕
+      </q-btn>
+      <q-btn outline glossy label='列印' icon="icon-svg58" @click="print()"/>
+    </div>
+     <div class="colum bg-grey-1 q-pb-xs full-width">
+      <div class="row justify-end q-pt-md q-pb-xs q-pr-xl text-black">
+     <q-btn outline glossy label='新增' @click="newB(), newRowVar=true" :disabled="newRowVar"/>
+     <q-btn v-show="false" outline glossy label='複製' @click="copyB(), newRowVar=true" :disabled="newRowVar"/>
+     <q-btn outline glossy label='修改' @click="modifyB(), newRowVar=true" :disabled="newRowVar"/>
+     <q-btn outline glossy label='刪除' @click="deleteB()" :disabled="newRowVar"/>
+     <q-btn v-show="availableTableShow" outline glossy label='返回' @click="backB(), availableTableShow=false"/>
+     <q-btn v-show="!availableTableShow" outline glossy label='展開' @click="extendB()"/>
+     <q-btn v-show="newRowVar" outline glossy label='確定' @click="newRowEnter(), newRowVar=false"/>
+     <q-btn v-show="newRowVar" outline glossy label='取消' @click="newRowCancel(), newRowVar=false"/>
+      </div>
+      <div class="col-4 q-mt-md q-mb-sm q-ml-sm q-mr-sm">
+       <h1>使用者帳號清單 - 權限設定</h1>
+      <q-table
+        :data="rows"
+        :columns="columns"
+        :rows-per-page-options="config.pagination.options"
+        :selected-rows-label="sel()"
+        :pagination.sync="serverPagination"
+        :dense="true"
+        :hide-header="false"
+        :hide-bottom="true"
+        separator="cell"
+        row-key="name"
+      >
+      <q-tr slot="body" slot-scope="props" :props="props">
+        <q-td v-for="col in columns" v-bind:key="col.name" v-if="props.row['newData'] === false && col.name !== 'select'" :props="props">
+            {{ props.row[col.name] }}
+          </q-td>
+        <q-td v-bind:key="col.name" v-else-if="col.name === 'select'" :props="props">
+            <!--<q-checkbox v-model="props.row[col.name]" />-->
+            <q-chip v-if="!props.row.selected" small square outline glossy @click="test(props)">確定</q-chip>
+            <q-chip v-else small square color="dark" text-color="white" @click="testSel(props)">確定</q-chip>
+          </q-td>
+          <q-td v-bind:key="col.name" v-else-if="props.row['newData'] === true && col.name !== 'select'" :props="props">
+            <q-input v-model="props.row[col.name]" />
+          </q-td>
+      </q-tr>
+      <!--<q-td slot="body-cell-select" slot-scope="props" :props="props">
+        <q-chip small square :color="props.color" @click="test(props)">確定</q-chip>
+      </q-td>-->
+      </q-table>
+       </div>
+      <div v-show="availableTableShow" class="row justify-end q-pt-xl q-pb-xs q-pr-xl text-black">
+        <q-btn outline glossy label='取消編輯' @click="cancel()"/>
+        <q-btn outline glossy label='存檔返回' @click="save()"/>
+     </div>
+      <div v-show="availableTableShow" class="col-4 q-mt-md q-mb-sm q-ml-sm q-mr-sm">
+      <div class="row">
+       <div class="col-3">
+        <h1>個人權限設定頁面</h1>
+        </div>
+        <div class="col-6 q-pt-md q-mt-xs q-pl-xl q-ml-xl">
+        <span>姓名：{{selectedName}}&nbsp;&nbsp;&nbsp;&nbsp;登錄帳號 : {{selectedID}}&nbsp;&nbsp;&nbsp;&nbsp;登陸密碼：{{selectedPW}}</span>
+        </div>
+        </div>
+      <q-table v-show="availableTableShow"
+        :data="rows2"
+        :columns="columns2"
+        :rows-per-page-options="config.pagination.options"
+        :selected-rows-label="sel()"
+        :pagination.sync="serverPagination"
+        :dense="true"
+        :hide-header="false"
+        :hide-bottom="true"
+        separator="cell"
+        row-key="name"
+      >
+        <q-tr slot="body" slot-scope="props" :props="props">
+          <q-td v-for="col in columns2" v-bind:key="col.name" v-if="props.row.__index > 1 && col.name !== 'pagePermissionSetting' && props.row[col.name] !== 0" :props="props">
+            <q-select
+            toggle
+            v-model="props.row[col.name]"
+            :options="allowOption"
+            error
+            hide-underline
+          />
+          </q-td>
+          <q-td v-else-if="props.row[col.name] === 0">
+            -
+          </q-td>
+          <q-td v-else-if="props.row.__index === 0 && (col.name === 'pagePermissionSetting' || col.name === 'viewSetting' || col.name === 'colorSetting' || col.name === 'updateData' || col.name === 'exportExcel' || col.name === 'print')" :rowspan="2">
+            {{ props.row[col.name] }}
+          </q-td>
+          <q-td v-else-if="props.row.__index === 0 && col.name === 'formFirstSection'" :colspan="3">
+            {{ props.row[col.name] }}
+          </q-td>
+          <q-td v-else-if="props.row.__index === 1 && (col.name !== 'pagePermissionSetting' && col.name !== 'viewSetting' && col.name !== 'colorSetting' && col.name !== 'updateData' && col.name !== 'exportExcel' && col.name !== 'print')">
+            {{ props.row[col.name] }}
+          </q-td>
+          <q-td v-else-if="props.row.__index > 1">
+            {{ props.row[col.name] }}
+          </q-td>
+        </q-tr>
+      </q-table>
+   </div>
+   </div>
+  </section>
+</div>
+</template>
+
+<script>
+import $ from 'jquery'
+import Vue from 'vue'
+// import moment from 'moment'
+// import 'moment-duration-format'
+// import Vue from 'vue'
+export default {
+  data: function () {
+    return {
+      fullscreen: false,
+      architecture: {'level1': {label: '一階', value: '機台編號'}, 'level2': {label: '二階', value: '區'}, 'level3': {label: '三階', value: '課'}},
+      organization: {
+        '_id': 'organization',
+        '全廠': {'all': ['成型一課', '成型二課', '成型三課']},
+        '成型一課': {'1A': ['全部機台', '1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09'], '1B': ['全部機台'], '1C': ['全部機台']},
+        '成型二課': {'2A': ['全部機台'], '2B': ['全部機台'], '2C': ['全部機台']}
+      },
+      initDoc: {
+        '_id': 'timeSlicePoint',
+        '日切換點': '08:00',
+        '時段點1': '12:00',
+        '時段點2': '16:30',
+        '時段點3': '20:00',
+        '時段點4': '23:00'
+      },
+      shift: {
+        '_id': 'shiftCfg',
+        '日班': {'from': '日切換點', 'to': '時段點2'},
+        '加班': {'from': '時段點2', 'to': '時段點3'},
+        '夜班': {'from': '時段點3', 'to': '日切換點'}
+      },
+      headName: ['select', 'timeSlicePointName', 'timeSlicePointTime'],
+      shiftName: {'select': '選擇', 'shiftName': '班別', 'from': '起', 'day': '隔日', 'to': '迄'},
+      rows: [],
+      columns: [],
+      columnsObj: {
+        'symbol': '帳號',
+        'fullName': '姓名',
+        'password': '密碼',
+        'select': '選擇'
+      },
+      rows1: [],
+      columns1: [],
+      rows2FixStr: {
+        setting: '頁面權限設定',
+        monitor: '機台監控',
+        register: '個別射出機生產資料明細',
+        Report: '生產報表',
+        ProductionStatisticsTable: '生產管理項目 期統計表',
+        Curve: '平均不良率 折線圖',
+        ProductReport: '成品料號生產統計表',
+        MoldReport: '模具編號生產統計表',
+        ProductProcessAnalysis: '成品料號製程分析',
+        MoldNumProcessAnalysis: '模具編號製程分析',
+        MOQ: '生產未達MOQ統計表',
+        Utilization: '稼動率報表',
+        AbnormalTable: '異常時數分類統計表',
+        AbnormalPie: '異常時數統計圓形圖',
+        Abnormal: '異常明細表',
+        calendar: '行事曆',
+        shiftTable: '機台排程表',
+        sysCommonSetting: '系統共用參數設定',
+        prodDepartSetting: '生產單位編制設定',
+        shiftTimeConfig: '班別時間表設定',
+        noteConfigSetting: '備註選填代號設定',
+        timeFormatSetting: '實際預計完成時間格式',
+        permissionSetting: '權限設定',
+        backup: '資料備份'
+      },
+      rows2: [],
+      rows3: [
+        {
+          id: 'setting', pagePermissionSetting: '頁面權限設定', viewSetting: '檢視權限設定', colorSetting: '欄位色彩設定', formFirstSection: '可檢視區域', updateData: '資料寫入', exportExcel: '匯出Excel', print: '列印'
+        },
+        {
+          formFirstSection: '成型一課', formSecondSection: '成型二課', formThirdSection: '成型三課'
+        },
+        {
+          id: 'monitor', pagePermissionSetting: '機台監控', colorSetting: 2, formFirstSection: 1, formSecondSection: 1, formThirdSection: 2, updateData: 0, exportExcel: 2, print: 2
+        },
+        {
+          id: 'register', pagePermissionSetting: '個別射出機生產資料明細', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'Report', pagePermissionSetting: '生產報表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'ProductionStatisticsTable', pagePermissionSetting: '生產管理項目 期統計表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'Curve', pagePermissionSetting: '平均不良率 折線圖', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'ProductReport', pagePermissionSetting: '成品料號 生產統計表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'MoldReport', pagePermissionSetting: '模具編號 生產統計表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'ProductProcessAnalysis', pagePermissionSetting: '成品料號 製成分析', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'MoldNumProcessAnalysis', pagePermissionSetting: '模具編號 製成分析', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'MOQ', pagePermissionSetting: '聲蟬未達MOQ統計表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'Utilization', pagePermissionSetting: '稼動表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'AbnormalTable', pagePermissionSetting: '設備 異常時數 分析表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'AbnormalPie', pagePermissionSetting: '設備 異常時數 統計圓形圖', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'Abnormal', pagePermissionSetting: '設備 異常時數明細報表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'calendar', pagePermissionSetting: '行事曆', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'shiftTable', pagePermissionSetting: '機台排程表', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'sysCommonSetting', pagePermissionSetting: '參數設定_系統通用參數設定', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'permissionSetting', pagePermissionSetting: '參數設定_權限設定', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        },
+        {
+          id: 'backup', pagePermissionSetting: '參數設定_資料備份', colorSetting: 2, formFirstSection: 2, formSecondSection: 2, formThirdSection: 2, updateData: 2, exportExcel: 2, print: 2
+        }
+      ],
+      columns2: [],
+      columns2Obj: {
+        pagePermissionSetting: '頁面權限設定',
+        viewSetting: '檢視權限設定',
+        colorSetting: '欄位色彩設定',
+        formFirstSection: '成型一課',
+        formSecondSection: '成型二課',
+        formThirdSection: '成型三課',
+        updateData: '資料寫入',
+        exportExcel: '匯出EXECEL',
+        print: '列印'
+      },
+      testStr: ['formFirstSection', 'formSecondSection', 'formThirdSection'],
+      selectedID: '---',
+      selectedName: '---',
+      selectedPW: '---',
+      config: {
+        noHeader: false,
+        refresh: false,
+        columnPicker: false,
+        leftStickyColumns: 0,
+        rightStickyColumns: 0,
+        responsive: false,
+        pagination: {
+          rowsPerPage: 20,
+          options: [20, 50, 100, 200, 500]
+        }
+      },
+      serverPagination: {
+        page: 1,
+        rowsPerPage: 20,
+        rowsNumber: 20 // specifying this determines pagination is server-side
+      },
+      noteList: [],
+      noteListArr: [],
+      newRowVar: false,
+      extend: false,
+      availableTableShow: false,
+      allowOption: [{
+        label: 'no',
+        value: 1
+      }, {
+        label: 'yes',
+        value: 2
+      }]
+    }
+  },
+  created () {
+    this.$nextTick(() => {
+      /* this.columns2.length = 0
+      var columns2Key = Object.keys(this.columns2Obj)
+      console.log('columns2Key')
+      console.log(columns2Key)
+      console.log(this.columns2Obj)
+      columns2Key.forEach(elm => {
+        var col2 = {
+          label: this.columns2Obj[elm],
+          name: elm,
+          field: elm
+        }
+        this.columns2.splice(this.columns2.length, 0, col2)
+      }) */
+      console.log('999999')
+      console.log(this.rows)
+      $.get('/api/getPermissionList', {}, (docs) => {
+        if (docs.type !== true) {
+          console.log('00000')
+          alert(`response is not correct, err: ${docs.data}`)
+        } else {
+          if (docs.data.length === 0) {
+          // alert('沒有派單資料')
+          } else {
+            console.log(docs.data)
+            this.columns.length = 0
+            var columnsKey = Object.keys(this.columnsObj)
+            columnsKey.forEach(elm => {
+              var col = {
+                label: this.columnsObj[elm],
+                name: elm,
+                field: elm
+              }
+              this.columns.splice(this.columns.length, 0, col)
+            })
+            this.rows.splice(0, this.rows.length)
+            docs.data.forEach(doc => {
+              doc['newData'] = false
+              this.rows.splice(this.rows.length, 0, doc)
+            })
+          }
+        }
+      })
+    })
+  },
+  mounted () {
+    this.columns2.length = 0
+    var columns2Key = Object.keys(this.columns2Obj)
+    console.log(columns2Key)
+    columns2Key.forEach(elm => {
+      var col2 = {
+        label: this.columns2Obj[elm],
+        name: elm,
+        field: elm
+      }
+      this.columns2.splice(this.columns2.length, 0, col2)
+    })
+    this.rows3.forEach(elm => {
+      var row = elm
+      row.pagePermissionSetting = this.rows2FixStr[elm.id]
+      this.rows2.splice(this.rows2.length, 0, row)
+    })
+  },
+  sockets: {
+    updateDetailSuccess: function (val) {
+    }
+  },
+  methods: {
+    print () {
+      window.print()
+    },
+    rz () {
+      if (this.$q.fullscreen.isCapable) {
+        // this.$q.fullscreen.toggle()
+        if (!this.$q.fullscreen.isActive) {
+          this.$q.fullscreen.request()
+        }
+      }
+    },
+    srz () {
+      if (this.$q.fullscreen.isCapable) {
+        if (this.$q.fullscreen.isActive) {
+          this.$q.fullscreen.exit()
+        }
+      }
+    },
+    sel () {
+
+    },
+    newB () {
+      this.rows.forEach((row, index, arr) => {
+        row.selected = false
+        Vue.set(arr[index], 'selected', false)
+        Vue.set(arr[index], 'color', 'amber')
+      })
+      var obj = {}
+      this.columns.forEach(column => {
+        obj[column] = ''
+      })
+      obj['selected'] = true
+      obj['newData'] = true
+      this.rows.splice(this.rows.length, 0, obj)
+    },
+    copyB () {},
+    modifyB () {
+      getPermissionDetail(this.rows2, this.selectedID)
+    },
+    deleteB () {
+      this.rows.forEach((row, idx, arr) => {
+        if (row['selected'] === true) {
+          arr.splice(idx, 1)
+          this.$socket.emit('deleteUser', row)
+        }
+      })
+    },
+    backB () { console.log('收起') },
+    extendB () {
+      console.log('展開')
+      console.log(this.selectedID)
+      if (this.selectedID !== '---') {
+        this.availableTableShow = true
+        getPermissionDetail(this.rows2, this.selectedID)
+      }
+    },
+    test (props) {
+      console.log('hello')
+      // this.availableTableShow = true
+      this.selectedID = props.row.symbol
+      this.selectedName = props.row.fullName
+      this.selectedPW = props.row.password
+      console.log(props)
+      this.rows.forEach((row, index, arr) => {
+        if (row.__index !== props.row.__index) {
+          console.log(row.__index)
+          console.log(props.row.__index)
+          row.selected = false
+          Vue.set(arr[index], 'selected', false)
+          Vue.set(arr[index], 'color', 'amber')
+        } else {
+          console.log(row.__index)
+          console.log(props.row.__index)
+          row.selected = true
+          Vue.set(arr[index], 'color', 'text-red')
+        }
+      })
+      console.log(this.rows)
+    },
+    testSel (props) {
+      console.log('testSel0')
+      this.test(props)
+      console.log('testSel')
+      getPermissionDetail(this.rows2, this.selectedID)
+    },
+    newRowEnter () {
+      this.rows.forEach(row => {
+        if (row['newData'] === true) {
+          Vue.set(row, 'newData', false)
+          Vue.set(row, 'selected', false)
+          Vue.set(row, 'color', 'amber')
+          this.$socket.emit('setNewUser', row)
+        }
+      })
+    },
+    newRowCancel () {
+      this.rows.splice(this.rows.length - 1, 1)
+    },
+    cancel () {
+      // this.availableTableShow = false
+      getPermissionDetail(this.rows2, this.selectedID)
+    },
+    save () {
+      var sendMsg = {}
+      sendMsg[this.selectedID] = this.rows2
+      this.$socket.emit('saveUserSettingDetail', sendMsg)
+    }
+  }
+}
+function getPermissionDetail (rows, selectedID) {
+  console.log('getPermissionDetail')
+  console.log(selectedID)
+  $.get('/api/getPermissionDetail/' + selectedID, {}, (docs) => {
+    if (docs.type !== true) {
+      console.log('00000')
+      alert(`response is not correct, err: ${docs.data}`)
+    } else {
+      if (docs.data.length === 0) {
+        // alert('沒有派單資料')
+      } else {
+        var retData = docs.data
+        rows.forEach((row, index, arr) => {
+          if (retData.hasOwnProperty(row.id)) {
+            var objKey = row.id
+            var updatedRow = retData[objKey]
+            updatedRow['pagePermissionSetting'] = row['pagePermissionSetting']
+            arr.splice(index, 1)
+            arr.splice(index, 0, retData[objKey])
+          }
+        })
+      }
+    }
+  })
+}
+</script>
+
+<style lang="stylus">
+  h4{
+     font-family: Microsoft JhengHei;
+     font-size:180%;
+     font-weight:600;
+    }
+  h5{
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:300;
+    }
+  h1{
+     font-family: Microsoft JhengHei;
+     font-size:150%;
+     font-weight:600;
+    }
+   span{
+     font-family: Microsoft JhengHei;
+     font-size:120%;
+     font-weight:bold;
+    }
+  .q-btn{
+     font-family: Microsoft JhengHei;
+     font-size:120%;
+     font-weight:bold;
+    }
+  .q-table{
+     color:#000000;
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .q-select{
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .q-datetime{
+     font-family:Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+    .blink {
+    animation: blink .9s linear infinite;
+    -webkit-animation: blink .9s linear infinite;
+    -moz-animation: blink .9s linear infinite;
+    -ms-animation: blink .9s linear infinite;
+    -o-animation: blink .9s linear infinite;
+}
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 1; }
+    50.01% { opacity: 0; }
+    100% { opacity: 0; }
+}
+@-webkit-keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 1; }
+    50.01% { opacity: 0; }
+    100% { opacity: 0; }
+}
+@-moz-keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 1; }
+    50.01% { opacity: 0; }
+    100% { opacity: 0; }
+}
+@-ms-keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 1; }
+    50.01% { opacity: 0; }
+    100% { opacity: 0; }
+}
+@-o-keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 1; }
+    50.01% { opacity: 0; }
+    100% { opacity: 0; }
+}
+  .icon-svg51:before{
+  content : url("../assets/small32/funnel.png");
+}
+.icon-svg52:before{
+  content : url("../assets/small32/A-to-Z.png");
+}
+.icon-svg53:before{
+  content : url("../assets/small32/Chart.png");
+}
+.icon-svg54:before{
+  content : url("../assets/small32/Color-dial.png");
+}
+.icon-svg55:before{
+  content : url("../assets/small32/Plus.png");
+}
+.icon-svg56:before{
+  content : url("../assets/small32/No-sign.png");
+}
+.icon-svg57:before{
+  content : url("../assets/small32/excel.png");
+}
+.icon-svg58:before{
+  content : url("../assets/small32/printer.png");
+}
+</style>

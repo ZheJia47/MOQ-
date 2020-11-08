@@ -1,0 +1,156 @@
+<template>
+  <q-layout ref="layout" view="hHh LpR lfr" class="bg-grey-4" :left-class="leftClass" :left-style="leftStyle">
+    <!-- Header -->
+    <q-toolbar slot="header">
+      <q-btn flat @click="$refs.layout.toggleLeft()">
+        <q-icon name="menu" />
+      </q-btn>
+      <q-toolbar-title>
+        龍達塑膠成型機生產管理系統
+        <span slot="subtitle">Version 3.0</span>
+      </q-toolbar-title>
+    </q-toolbar>
+    <div slot="left">
+      <q-list separator>
+        <!-- menu link -->
+        <q-side-link class="router-link-active" item to="/">
+          <q-item-side class="fa fa-home" />
+          <q-item-main label="首頁" />
+        </q-side-link>
+        <q-side-link item to="/">
+          <q-item-side class="fa fa-eye" />
+          <q-item-main label="機台監控" />
+        </q-side-link>
+        <q-side-link item to="/Register">
+          <q-item-side class="fa fa-pencil" />
+          <q-item-main label="資料登錄" />
+        </q-side-link>
+        <q-collapsible label="生產報表">
+          <q-item to="/DailyReport">
+            <q-item-side class="fa fa-table" />
+            <q-item-main label="日" />
+          </q-item>
+          <q-item to="/WeeklyReport">
+            <q-item-side class="fa fa-table" />
+            <q-item-main label="週" />
+          </q-item>
+          <q-item to="/TenDaysReport">
+            <q-item-side class="fa fa-table" />
+            <q-item-main label="旬" />
+          </q-item>
+          <q-item to="/MonthlyReport">
+            <q-item-side class="fa fa-table" />
+            <q-item-main label="月" />
+          </q-item>
+          <q-item to="/QuarterlyReport">
+            <q-item-side class="fa fa-table" />
+            <q-item-main label="季" />
+          </q-item>
+          <q-item to="/YearlyReport">
+            <q-item-side class="fa fa-table" />
+            <q-item-main label="年" />
+          </q-item>
+          <q-item to="/PeriodReport">
+            <q-item-side class="fa fa-table" />
+            <q-item-main label="自訂期間" />
+          </q-item>
+        </q-collapsible>
+        <q-side-link item to="/">
+          <q-item-side class="fa fa-bar-chart" />
+          <q-item-main label="稼動報表" />
+        </q-side-link>
+        <q-side-link item to="/">
+          <q-item-side class="fa fa-exclamation-triangle" />
+          <q-item-main label="異常報表" />
+        </q-side-link>
+        <q-side-link item to="/">
+          <q-item-side class="fa fa-cog" />
+          <q-item-main label="參數設定" />
+        </q-side-link>
+        <q-side-link item to="/">
+          <q-item-side class="fa fa-calendar" />
+          <q-item-main label="工作排程" />
+        </q-side-link>
+        <q-side-link item to="/">
+          <q-item-side class="fa fa-question" />
+          <q-item-main label="使用說明" />
+        </q-side-link>
+        <q-collapsible label="檔案操作">
+          <q-item to="/FileUpload">
+            <q-item-side class="fa fa-upload" />
+            <q-item-main label="上傳檔案" />
+          </q-item>
+          <q-item to="/FileConfig">
+            <q-item-side class="fa fa-cog" />
+            <q-item-main label="變更檔案匯入設定" />
+          </q-item>
+        </q-collapsible>
+      </q-list>
+    </div>
+    <!-- Right Side Panel
+    <div slot="right">
+      Right Side of Layout
+    </div>
+    -->
+    <!-- sub-routes get injected here: -->
+    <router-view />
+    <!-- Footer -->
+    <!-- 
+    <q-toolbar slot="footer">
+      <q-toolbar-title>
+        Layout Footer
+      </q-toolbar-title>
+    </q-toolbar>
+    -->
+  </q-layout>
+</template>
+
+<script>
+export default {
+  name: 'index',
+  data () {
+    return {
+      leftClass: {
+        'bg-dark': true,
+        'text-white': true
+      },
+      leftStyle: {
+        'width': '10em'
+      },
+      sideBarShow: {
+        report: false
+      }
+    }
+  },
+  computed: {
+  },
+  methods: {
+  },
+  mounted () {
+  },
+  beforeDestroy () {
+  }
+}
+</script>
+
+<style lang="stylus">
+.logo-container
+  width 255px
+  height 242px
+  perspective 800px
+  position absolute
+  top 50%
+  left 50%
+  transform translateX(-50%) translateY(-50%)
+.logo
+  position absolute
+  transform-style preserve-3d
+.q-item.router-link-active, .q-item:focus
+  background: rgba(0,0,0,0);
+.q-item-side
+  color: white;
+  min-width: 1em;
+.layout-aside-left
+  left: 0;
+  width: 250px;
+</style>

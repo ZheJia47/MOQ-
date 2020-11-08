@@ -1,0 +1,515 @@
+<template>
+<div class="layout-padding">
+  <section class="content">
+   <div class="row inline bg-light-blue-7 full-width glossy">
+    <div class="col-12 q-pl-xl text-white">
+      <h4>班別時間表設定</h4>
+    </div>
+    </div>
+        <div class="row justify-end q-pt-xs q-pb-xs q-pr-xl text-white bg-light-blue-8 full-width ">
+          <q-btn outline glossy v-if="$q.fullscreen.isActive" @click="rz()">
+        <q-icon name="fullscreen" size="36px" />
+        全銀幕
+      </q-btn>
+      <q-btn outline glossy v-else @click="srz()">
+        <q-icon name="fullscreen_exit" size="36px" />
+        退出全銀幕
+      </q-btn>
+      <q-btn outline glossy label='列印' icon="icon-svg58" @click="print()"/>
+    </div>
+    <div class="colum bg-grey-1 q-pb-xs full-width">
+      <div class="row justify-end q-pt-md q-pb-xs q-pr-xl text-black">
+     <q-btn outline glossy label='新增' @click="newClock(), newData=true" :disabled="newData"/>
+     <q-btn outline glossy label='修改' @click="modifyClock(), newData=true" :disabled="newData"/>
+     <q-btn outline glossy label='刪除' @click="deleteClock()" :disabled="newData"/>
+     <q-btn v-show="newData" outline glossy label='確定' @click="writeClockSetting(), newData=false"/>
+     <q-btn v-show="newData" outline glossy label='取消' @click="cancelClockSetting(), newData=false"/>
+     </div>
+     <div class="col-4 q-mt-md q-mb-xl q-ml-sm q-mr-sm">
+       <q-table
+        :data="rows"
+        :columns="columns"
+        :rows-per-page-options="config.pagination.options"
+        :selected-rows-label="sel()"
+        :pagination.sync="serverPagination"
+        :dense="true"
+        :hide-header="true"
+        :hide-bottom="true"
+        separator="cell"
+        row-key="name"
+      >
+      <q-tr slot="body" slot-scope="props" :props="props">
+        <q-td v-for="col in columns" v-bind:key="col.name" v-if="col.name === 'select' && props.row.__index !== 0" :props="props">
+          <q-checkbox v-model="props.row[col.name]" />
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['newData'] === true && col.name !== 'timeSlicePointName'">
+          <q-input v-model="props.row[col.name + '0']" />
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['editData'] === true && col.name !== 'timeSlicePointName'">
+          <q-input v-model="props.row[col.name + '0']" />
+        </q-td>
+        <q-td v-bind:key="col.name" v-else>
+          {{props.row[col.name]}}
+        </q-td>
+      </q-tr>
+      </q-table>
+   </div>
+   <div class="row justify-end q-pt-xs q-pb-xs q-pr-xl text-black">
+     <q-btn outline glossy label='新增' @click="newShift(), editShift=true" :disable="editShift"/>
+     <q-btn outline glossy label='修改' @click="modifyShift(), editShift=true" :disable="editShift"/>
+     <q-btn outline glossy label='刪除' @click="deleteShift()"/>
+     <q-btn v-show="editShift" outline glossy label='確定' @click="writeShiftSetting(), editShift=false"/>
+     <q-btn v-show="editShift" outline glossy label='取消' @click="cancelShiftSetting(), editShift=false"/>
+   </div>
+      <div class="col-4 q-mt-md q-mb-sm q-ml-sm q-mr-sm">
+      <q-table
+        :data="rows1"
+        :columns="columns1"
+        :rows-per-page-options="config.pagination.options"
+        :selected-rows-label="sel()"
+        :pagination.sync="serverPagination"
+        :dense="true"
+        separator="cell"
+        row-key="name"
+      >
+      <q-tr slot="body" slot-scope="props" :props="props">
+        <q-td v-for="col in columns1" v-bind:key="col.name" v-if="col.name === 'select'" :props="props">
+          <q-checkbox v-model="props.row[col.name]" />
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['newData'] === true && col.name === 'shiftName'">
+          <q-input v-model="props.row[col.name + '0']" />
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['newData'] === true && col.name === 'day'">
+          {{props.row[col.name]}}
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['newData'] === true">
+          <!--<q-input v-model="props.row[col.name]" />-->
+          <q-select color="white" v-model="props.row[col.name + '0']" class="no-margin" :options="closkList" stack-label=" " >
+      </q-select>
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['editData'] === true && col.name === 'shiftName'">
+          <q-input v-model="props.row[col.name + '0']" />
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['editData'] === true && col.name === 'day'">
+          {{props.row[col.name]}}
+        </q-td>
+        <q-td v-bind:key="col.name" v-else-if="props.row['editData'] === true">
+          <!--<q-input v-model="props.row[col.name]" />-->
+          <q-select color="white" v-model="props.row[col.name + '0']" class="no-margin" :options="closkList" stack-label=" " >
+      </q-select>
+        </q-td>
+        <q-td v-bind:key="col.name" v-else>
+          {{props.row[col.name]}}
+        </q-td>
+      </q-tr>
+      </q-table>
+   </div>
+   </div>
+  </section>
+</div>
+</template>
+
+<script>
+import Vue from 'vue'
+var _ = require('underscore')._
+export default {
+  data: function () {
+    return {
+      fullscreen: false,
+      architecture: {'level1': {label: '一階', value: '機台編號'}, 'level2': {label: '二階', value: '區'}, 'level3': {label: '三階', value: '課'}},
+      organization: {
+        '_id': 'organization',
+        '全廠': {'all': ['成型一課', '成型二課', '成型三課']},
+        '成型一課': {'1A': ['全部機台', '1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09'], '1B': ['全部機台'], '1C': ['全部機台']},
+        '成型二課': {'2A': ['全部機台'], '2B': ['全部機台'], '2C': ['全部機台']}
+      },
+      initDoc: {
+        _id: 'timeSlicePoint',
+        0: '08:00', // '日切換點'
+        1: '12:00',
+        2: '16:30',
+        3: '20:00',
+        4: '23:00'
+      },
+      shift: {
+        '_id': 'shiftCfg',
+        '日班': {'from': '0', 'to': '2'},
+        '加班': {'from': '2', 'to': '3'},
+        '夜班': {'from': '3', 'to': '0'}
+      },
+      /* shift: {
+        '_id': 'shiftCfg',
+        '日班': {'from': '日切換點', 'to': '時段點2'},
+        '加班': {'from': '時段點2', 'to': '時段點3'},
+        '夜班': {'from': '時段點3', 'to': '日切換點'}
+      }, */
+      headName: ['select', 'timeSlicePointName', 'timeSlicePointTime'],
+      shiftName: {'select': '選擇', 'shiftName': '班別', 'from': '起', 'day': '隔日', 'to': '迄'},
+      rows: [],
+      columns: [],
+      rows1: [],
+      columns1: [],
+      config: {
+        noHeader: false,
+        refresh: false,
+        columnPicker: false,
+        leftStickyColumns: 0,
+        rightStickyColumns: 0,
+        responsive: false,
+        pagination: {
+          rowsPerPage: 20,
+          options: [20, 50, 100, 200, 500]
+        }
+      },
+      serverPagination: {
+        page: 1,
+        rowsPerPage: 20,
+        rowsNumber: 20 // specifying this determines pagination is server-side
+      },
+      newData: false,
+      editShift: false,
+      closkList: []
+    }
+  },
+  created () {
+    this.headName.forEach(head => {
+      this.columns.splice(this.columns.length, 0, {
+        field: head,
+        name: head
+      })
+    })
+    var initDocKeys = Object.keys(this.initDoc)
+    initDocKeys.forEach(initDocKey => {
+      if (initDocKey !== '_id') {
+        var obj = {}
+        obj['newData'] = false
+        obj['editData'] = false
+        this.columns.forEach(column => {
+          if (column.field === this.headName[0]) {
+            if (initDocKey === '0') { // '日切換點'
+              obj[column.field] = '選擇'
+            } else {
+              obj[column.field] = false
+            }
+          }
+          if (column.field === this.headName[1]) {
+            if (initDocKey === '0') {
+              obj[column.field] = '日切換點'
+            } else {
+              obj[column.field] = '時段點' + initDocKey
+            }
+          } else if (column.field === this.headName[2]) {
+            obj[column.field] = this.initDoc[initDocKey]
+          }
+        })
+        obj.value = initDocKey
+        this.rows.splice(this.rows.length, 0, obj)
+      }
+    })
+    console.log('rows1')
+    console.log(this.rows)
+    var shiftNameKeys = Object.keys(this.shiftName)
+    this.columns1.length = 0
+    shiftNameKeys.forEach(elm => {
+      var obj = {}
+      obj['label'] = this.shiftName[elm]
+      obj['field'] = elm
+      obj['name'] = elm
+      this.columns1.splice(this.columns1.length, 0, obj)
+    })
+    this.rows1.length = 0
+    var shiftName = Object.keys(this.shift)
+    shiftName.forEach(elm => {
+      if (elm !== '_id') {
+        var obj = {}
+        var from = ''
+        var to = ''
+        obj['newData'] = false
+        obj['editData'] = false
+        this.columns1.forEach((column, index) => {
+          if (index === 0) {
+            obj[column.field] = false
+          } else if (index === 1) {
+            obj[column.field] = elm
+          } else if (index === 2) {
+            obj[column.field] = this.initDoc[((this.shift[elm])[column.field])]
+            from = obj[column.field]
+          } else if (index === 4) {
+            obj[column.field] = this.initDoc[((this.shift[elm])[column.field])]
+            to = obj[column.field]
+          }
+        })
+        if (to < from) {
+          obj[this.columns1[3].field] = this.columns1[3].label
+        }
+        this.rows1.splice(this.rows1.length, 0, obj)
+      }
+    })
+  },
+  mounted () {
+  },
+  sockets: {},
+  methods: {
+    print () {
+      window.print()
+    },
+    rz () {
+      if (this.$q.fullscreen.isCapable) {
+        // this.$q.fullscreen.toggle()
+        if (!this.$q.fullscreen.isActive) {
+          this.$q.fullscreen.request()
+        }
+      }
+    },
+    srz () {
+      if (this.$q.fullscreen.isCapable) {
+        if (this.$q.fullscreen.isActive) {
+          this.$q.fullscreen.exit()
+        }
+      }
+    },
+    sel () {
+
+    },
+    newClock () {
+      var initDocKeys = Object.keys(this.initDoc)
+      var initDocKeysExceptId = initDocKeys.filter(initDocKey => {
+        return initDocKey !== '_id'
+      })
+      initDocKeysExceptId.sort(function (a, b) {
+        return parseInt(a) < parseInt(b) ? 1 : -1
+      })
+      this.rows.splice(this.rows.length, 0, {
+        newData: true,
+        select: true,
+        timeSlicePointName: '時段點' + (parseInt(initDocKeysExceptId[0]) + 1),
+        timeSlicePointTime: ''
+      })
+    },
+    modifyClock () {
+      this.rows.forEach(row => {
+        if (row.select === true) {
+          Vue.set(row, 'editData', true)
+          Vue.set(row, 'timeSlicePointTime0', row['timeSlicePointTime'])
+        }
+      })
+    },
+    deleteClock () {
+      this.rows.forEach((row, ind, arr) => {
+        if (row.select === true) {
+          var intKey = row['timeSlicePointName'].split('時段點')
+          delete this.initDoc[intKey[1]]
+          arr.splice(ind, 1)
+        }
+      })
+    },
+    cancelClockSetting () {
+      this.rows.forEach((row, ind, arr) => {
+        Vue.set(row, 'select', false)
+        if (row.newData === true) {
+          arr.splice(ind, 1)
+        } else if (row.editData === true) {
+          Vue.set(row, 'editData', false)
+        }
+      })
+    },
+    writeClockSetting () {
+      var intKey = ''
+      this.rows.forEach(row => {
+        Vue.set(row, 'select', false)
+        if (row.newData === true) {
+          Vue.set(row, 'newData', false)
+          Vue.set(row, 'editData', false)
+          Vue.set(row, 'timeSlicePointTime', row['timeSlicePointTime0'])
+          intKey = row['timeSlicePointName'].split('時段點')
+          console.log(intKey)
+          this.initDoc[intKey[1]] = row['timeSlicePointTime0']
+        } else if (row.editData === true) {
+          Vue.set(row, 'editData', false)
+          Vue.set(row, 'timeSlicePointTime', row['timeSlicePointTime0'])
+          intKey = row['timeSlicePointName'].split('時段點')
+          console.log(intKey)
+          this.initDoc[intKey[1]] = row['timeSlicePointTime0']
+        }
+      })
+      console.log(this.initDoc)
+    },
+    newShift () {
+      this.rows1.splice(this.rows1.length, 0, {
+        newData: true,
+        select: true,
+        shiftName: '',
+        from: '',
+        day: '',
+        to: ''
+      })
+      this.closkList.splice(0, this.closkList.length)
+      if (this.rows.length > 0) {
+        this.rows.forEach(row => {
+          this.closkList.splice(this.closkList.length, 0, {
+            label: row.timeSlicePointTime,
+            value: row.value
+          })
+        })
+      }
+    },
+    modifyShift () {
+      this.rows1.forEach((row1, ind, arr) => {
+        if (row1.select === true) {
+          Vue.set(row1, 'editData', true)
+          Vue.set(row1, 'shiftName0', row1['shiftName'])
+          Vue.set(row1, 'from0', (_.invert(this.initDoc))[row1['from']])
+          Vue.set(row1, 'to0', (_.invert(this.initDoc))[row1['to']])
+        }
+      })
+      console.log(this.rows1)
+    },
+    writeShiftSetting () {
+      console.log(this.rows1)
+      console.log(this.shift)
+      var shiftNameKeys = Object.keys(this.shiftName)
+      this.rows1.forEach(row1 => {
+        Vue.set(row1, 'select', false)
+        if (row1.newData === true) {
+          Vue.set(row1, 'newData', false)
+          Vue.set(row1, 'editData', false)
+          shiftNameKeys.forEach(shiftNameKey => {
+            if (row1.hasOwnProperty(shiftNameKey + '0')) {
+              if (shiftNameKey !== 'shiftName') {
+                Vue.set(row1, shiftNameKey, this.initDoc[row1[shiftNameKey + '0']])
+              } else {
+                Vue.set(row1, shiftNameKey, row1[shiftNameKey + '0'])
+              }
+            }
+          })
+          this.shift[row1['shiftName']] = {'from': row1['from0'], 'to': row1['to0']}
+        } else if (row1.editData === true) {
+          var oldKey = row1['shiftName']
+          Vue.set(row1, 'editData', false)
+          shiftNameKeys.forEach(shiftNameKey => {
+            if (row1.hasOwnProperty(shiftNameKey + '0')) {
+              if (shiftNameKey !== 'shiftName') {
+                Vue.set(row1, shiftNameKey, this.initDoc[row1[shiftNameKey + '0']])
+              } else {
+                Vue.set(row1, shiftNameKey, row1[shiftNameKey + '0'])
+              }
+            }
+          })
+          delete this.shift[oldKey]
+          this.shift[row1['shiftName']] = {'from': row1['from0'], 'to': row1['to0']}
+        }
+      })
+      console.log(this.shift)
+      console.log(Object.keys(this.shift))
+    },
+    cancelShiftSetting () {
+      this.rows1.forEach((row1, ind, arr) => {
+        Vue.set(row1, 'select', false)
+        if (row1.newData === true) {
+          arr.splice(ind, 1)
+        } else if (row1.editData === true) {
+          Vue.set(row1, 'editData', false)
+        } else if (row1.select === true) {
+          Vue.set(row1, 'select', false)
+        }
+      })
+      // this.rows1.splice(this.rows1.length - 1, 1)
+    },
+    deleteShift () {
+      this.rows1.forEach((row1, ind, arr) => {
+        if (row1.select === true) {
+          delete this.shift[row1.shiftName]
+          arr.splice(ind, 1)
+        }
+      })
+    }
+  }
+}
+</script>
+
+<style lang="stylus">
+  h4{
+     font-family: Microsoft JhengHei;
+     font-size:180%;
+     font-weight:600;
+    }
+   h5{
+     font-family: Microsoft JhengHei;
+     font-size:140%;
+     font-weight:300;
+    }
+   span{
+     font-family: Microsoft JhengHei;
+     font-size:120%;
+     font-weight:bold;
+    }
+  .q-btn{
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight: 200;
+    }
+  i{
+     font-size:200%;
+   }
+  .q-table{
+     color:#000000;
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .table{
+     color:#000000;
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .tr{
+     color:#000000;
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .td{
+     color:#000000;
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .q-tr{
+     color:#000000;
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .q-td{
+     color:#000000;
+     font-family: Microsoft JhengHei;
+     font-size:100%;
+     font-weight:bold;
+    }
+  .icon-svg30:before{
+    content : url("../assets/icon/cbor2-mih9q.svg");
+    }
+  .icon-svg31:before{
+    content : url("../assets/icon/cbunv-29e8f.svg");
+    }
+  .icon-svg32:before{
+    content : url("../assets/icon/cbv0c-yrs86.svg");
+    }
+  .icon-svg33:before{
+    content : url("../assets/icon/cbggp-n12pn.svg");
+    }
+  .icon-svg34:before{
+    content : url("../assets/icon/cbunh-4jyjp.svg");
+    }
+  .icon-halfAuto:before{
+    content : url("../assets/small32/cbor2-mih9q.png");
+    }
+  .icon-auto:before{
+    content : url("../assets/small32/cbv0c-yrs86.png");
+    }
+  .icon-manual:before{
+    content : url("../assets/small32/cbunv-29e8f.png");
+    font-size: 1px
+    }
+</style>

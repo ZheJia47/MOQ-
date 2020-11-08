@@ -1,0 +1,367 @@
+<template>
+<div class="layout-padding">
+  <section class="content">
+   <div class="row content-around bg-light-blue-9 glossy full-width">
+    <div class="col-6 text-white q-ml-xl">
+    </div>
+   </div>
+      <div v-for="(data, key) in rows" v-bind:key="key" class="col-4 q-mt-md q-mb-xl q-ml-md">
+        {{key}}
+      <q-table
+        :data="data"
+        :columns="columns"
+        :rows-per-page-options="config.pagination.options"
+        :selected-rows-label="sel()"
+        :pagination.sync="serverPagination"
+        :dense="true"
+        :hide-header="false"
+        :hide-bottom="true"
+        separator="cell"
+        row-key="name"
+      >
+      </q-table>
+ <line-chart :data="myChart2[key]" :labels="labels" :options="myChart2Options"></line-chart>
+      </div>
+   <div>
+     <q-btn color="black" label='圖形測試' @click="a()"/>
+   </div>
+       <div class="small">
+    </div>
+  </section>
+</div>
+</template>
+
+<script>
+import $ from 'jquery'
+// import moment from 'moment'
+// import 'moment-duration-format'
+import Vue from 'vue'
+export default {
+  data: function () {
+    return {
+      architecture: {'level1': {label: '一階', value: '機台編號'}, 'level2': {label: '二階', value: '區'}, 'level3': {label: '三階', value: '課'}},
+      organization: {
+        '_id': 'organization',
+        '全廠': {'all': ['成型一課', '成型二課', '成型三課']},
+        '成型一課': {'1A': ['全部機台', '1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09'], '1B': ['全部機台'], '1C': ['全部機台']},
+        '成型二課': {'2A': ['全部機台'], '2B': ['全部機台'], '2C': ['全部機台']}
+      },
+      organizationDoc: {
+        '_id': 'organization',
+        '全廠': [
+          {'成型一課': {'1A': ['1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09'], '1B': [], '1C': []}},
+          {'成型二課': {'2A': [], '2B': [], '2C': []}}
+        ]
+      },
+      initDoc: {
+        '_id': 'timeSlicePoint',
+        '日切換點': '08:00',
+        '時段點1': '12:00',
+        '時段點2': '16:30',
+        '時段點3': '20:00',
+        '時段點4': '23:00'
+      },
+      shift: {
+        '_id': 'shiftCfg',
+        '日班': {'from': '日切換點', 'to': '時段點2'},
+        '加班': {'from': '時段點2', 'to': '時段點3'},
+        '夜班': {'from': '時段點3', 'to': '日切換點'}
+      },
+      headName: ['select', 'timeSlicePointName', 'timeSlicePointTime'],
+      shiftName: {'select': '選擇', 'shiftName': '班別', 'from': '起', 'day': '隔日', 'to': '迄'},
+      rows: [],
+      columns: [],
+      columnsObj: {
+        'symbol': '代號',
+        'definition': '定義'
+      },
+      rows1: [],
+      columns1: [],
+      config: {
+        noHeader: false,
+        refresh: false,
+        columnPicker: false,
+        leftStickyColumns: 0,
+        rightStickyColumns: 0,
+        responsive: false,
+        pagination: {
+          rowsPerPage: 20,
+          options: [20, 50, 100, 200, 500]
+        }
+      },
+      serverPagination: {
+        page: 1,
+        rowsPerPage: 20,
+        rowsNumber: 20 // specifying this determines pagination is server-side
+      },
+      noteList: [],
+      noteListArr: [],
+      // myChart2: [],
+      producePieColor: ['#00D8FF', '#DD1B16'],
+      // myChart2: { labels: [], datasets: [] },
+      myChart2Options:
+      {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation:
+        {
+          duration: 0
+        },
+        hover: {
+          animationDuration: 0
+        },
+        responsiveAnimationDuration: 0
+      },
+      labels: ['a', 'b', 'c', 'd', 'e'],
+      myChart2: {0: []},
+      myChart3: {
+        labels: ['x', 'y', 'z', 'a', 'b'],
+        datasets: [{
+          label: '1',
+          backgroundColor: 'red',
+          data: [10, 20, 30, 40, 50]
+        }, {
+          label: '2',
+          backgroundColor: 'blue',
+          data: [20, 40, 60, 80, 100]
+        }, {
+          label: '3',
+          backgroundColor: 'green',
+          data: [30, 60, 90, 120, 150]
+        }]
+      }
+      /* myChart2Options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        pieceLabel: {
+          mode: 'percentage',
+          precision: 1
+        }
+      } */
+    }
+  },
+  beforeCreate () {
+    console.log('123456')
+    console.log('654321')
+  },
+  created () {
+    this.$nextTick(() => {
+      this.rows[0] = []
+      renderTable(this.rows, '201809', '2018-01', 12, this.myChart2, 0, Vue.set)
+      console.log('999999')
+      this.columnsObj = {
+        '10408': '104年8月',
+        '10409': '104年9月',
+        '10410': '104年10月',
+        '10411': '104年11月',
+        '10412': '104年12月',
+        '10501': '105年1月',
+        '10502': '105年2月',
+        '10503': '105年3月',
+        '10504': '105年4月',
+        '10505': '105年5月',
+        '10506': '105年6月',
+        '10507': '105年7月'
+      }
+      var columnsObjKey = Object.keys(this.columnsObj)
+      console.log('1111')
+      console.log(columnsObjKey)
+      columnsObjKey.forEach(columnKey => {
+        this.columns.splice(this.columns.length, 0, {
+          label: this.columnsObj[columnKey],
+          field: columnKey,
+          name: columnKey
+        })
+      })
+      /* this.rows[0] = [{
+        '10408': 4.6,
+        '10409': 5.0,
+        '10410': 3.8,
+        '10411': 2.0,
+        '10412': 1.8,
+        '10501': 2.0,
+        '10502': 6.2,
+        '10503': 4.0,
+        '10504': 3.0,
+        '10505': 4.5,
+        '10506': 3.1,
+        '10507': 4.5
+      }, {
+        '10408': 0,
+        '10409': 0,
+        '10410': 3,
+        '10411': 2,
+        '10412': 1,
+        '10501': 2,
+        '10502': 6,
+        '10503': 4,
+        '10504': 3,
+        '10505': 4,
+        '10506': 3,
+        '10507': 0
+      }]
+      this.rows[1] = [{
+        '10408': 14.6,
+        '10409': 15.0,
+        '10410': 13.8,
+        '10411': 12.0,
+        '10412': 11.8,
+        '10501': 12.0,
+        '10502': 16.2,
+        '10503': 14.0,
+        '10504': 13.0,
+        '10505': 14.5,
+        '10506': 13.1,
+        '10507': 14.5
+      }] */
+      var columnsObjVal = Object.values(this.columnsObj)
+      this.labels = columnsObjVal
+      console.log(this.rows)
+      /* for (let index in this.rows) {
+        console.log('index')
+        console.log(index)
+        var rowsVal = Object.values((this.rows[index])[0])
+        console.log('AAAAAAAAAAAAa')
+        console.log(rowsVal)
+        this.myChart2[index] = []
+        this.myChart2[index].length = 0 // splice(0, this.myChart2.length)
+        this.myChart2[index].splice(this.myChart2[index].length, 0, {
+          label: 'Data One',
+          backgroundColor: 'red',
+          data: rowsVal
+        })
+      } */
+    })
+  },
+  watch: {
+    /* rows () {
+      console.log('cccccc')
+      for (let index in this.rows) {
+        console.log('index')
+        console.log(index)
+        var rowsVal = Object.values((this.rows[index])[0])
+        console.log('AAAAAAAAAAAAa')
+        console.log(rowsVal)
+        this.myChart2[index] = []
+        this.myChart2[index].length = 0 // splice(0, this.myChart2.length)
+        this.myChart2[index].splice(this.myChart2[index].length, 0, {
+          label: 'Data One',
+          backgroundColor: 'red',
+          data: rowsVal
+        })
+      }
+    } */
+  },
+  mounted () {
+    // this.a()
+    // renderTable(this.rows, '201809', '2018-01', 12, this.myChart2)
+  },
+  sockets: {},
+  methods: {
+    sel () {
+
+    },
+    /* getRandomInt () {
+      return Math.floor(Math.random() * (50 - 5 + 1)) + 5
+    }, */
+    a () {
+      /* this.myChart2 = {
+        labels: ['x', 'y', 'z', 'a', 'b'],
+        datasets: [
+          {
+            label: 'Data One',
+            backgroundColor: 'red',
+            data: [100, 80, 60, 40, 20]
+          }, {
+            label: 'Data One',
+            backgroundColor: 'orange',
+            data: [180, 150, 120, 90, 60]
+          }, {
+            label: 'Data One',
+            backgroundColor: 'purple',
+            data: [200, 190, 180, 170, 160]
+          }
+        ]
+      } */
+      console.log(1111111111111111111111)
+      console.log(this.rows)
+      console.log(this.myChart2)
+      this.myChart2.length = 0 // splice(0, this.myChart2.length)
+      this.myChart2.splice(this.myChart2.length, 0, {
+        label: 'Data One',
+        backgroundColor: 'red',
+        data: [100, 80, 60, 40, 20]
+      })
+      /* this.myChart2.splice(this.myChart2.length, 0, {
+        label: 'Data One',
+        backgroundColor: 'orange',
+        data: [180, 150, 120, 90, 60]
+      })
+      this.myChart2.splice(this.myChart2.length, 0, {
+        label: 'Data One',
+        backgroundColor: 'purple',
+        data: [200, 190, 180, 170, 160]
+      })
+      console.log(this.myChart2) */
+    }
+  }
+}
+function renderTable (rows, reportRange, iReportDate, month, myChart2, index, fun) {
+  // init the records in the rows
+  rows.splice(0, rows.length)
+  // var reportDate = moment(iReportDate).format('YYYY-MM-DD 00:00:00')
+  // ['成型一課', '成型二課']
+  // ['1A', '1B']
+  var range = ['1A', '1B'] // ['1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09']
+  var dt = '2018-09'
+  var months = 12
+  $.get('/api/getDefectiveTable/' + range + '/' + dt + '/' + months, {}, (results) => {
+    if (results.type !== true) {
+      alert(`response is not correct, err: ${results.data}`)
+    } else if (results.data.length === 0) {
+      alert('沒有機台資料')
+    } else {
+      rows.length = 0
+      var records = results.data
+      console.log(records)
+
+      index = 0
+      // rows[index] = []
+      for (let idx in records) {
+        // index = idx
+        rows[index] = []
+        console.log(idx)
+        console.log(records[idx])
+        // var t1 = []
+        console.log('uuuuuuuuuuuuu')
+        records[idx].forEach((elm, Ind) => {
+          fun(rows[index], Ind, elm)
+        })
+        // rows.splice(rows.length, 0, records[idx])
+        // rows[t++] = t1
+        var rowsVal = Object.values((rows[index])[0]) // 選第一列作為會圖的資料
+        console.log('RRRRRRRRRRRRR')
+        console.log(rowsVal)
+        myChart2[index] = []
+        myChart2[index].length = 0 // splice(0, this.myChart2.length)
+        myChart2[index].splice(myChart2[index].length, 0, {
+          label: 'Data One',
+          backgroundColor: 'red',
+          data: rowsVal
+        })
+        index++
+      }
+      index = 0
+      console.log('eeeeeee')
+      console.log(rows)
+    }
+  })
+}
+</script>
+
+<style>
+.small {
+    max-width: 600px;
+    margin:  150px auto;
+  }
+</style>

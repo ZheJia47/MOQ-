@@ -1,0 +1,43 @@
+function merge (rows, rowsMerge, columns) {
+  var columnsMerge = columns.filter(element => {
+    return element.merge === true
+  })
+  console.log('columnsMerge')
+  console.log(columnsMerge)
+  rowsMerge.splice(0, rowsMerge.length)
+  rowsMerge.length = 0
+  console.log('Hi~hi~')
+  console.log(columnsMerge.length)
+  console.log(columnsMerge)
+  var arr = Array(columnsMerge.length)
+  var prevRow = {}
+  rows.forEach(row => {
+    var newRow = row
+    columnsMerge.forEach((columnMerge, index) => {
+      if (row[columnMerge.name] !== arr[index]) {
+        arr[index] = row[columnMerge.name]
+        newRow[columnMerge.name] = row[columnMerge.name]
+        // console.log('newRow')
+        // console.log(newRow)
+        newRow[columnMerge.name + 'SZ'] = 0
+        // console.log('newRow')
+        // console.log(newRow)
+        if (rowsMerge.length > 0) {
+          (rowsMerge[rowsMerge.length - prevRow[columnMerge.name + 'SZ'] - 1])[columnMerge.name + 'SZ'] = prevRow[columnMerge.name + 'SZ']
+        }
+      } else {
+        newRow[columnMerge.name] = ''
+        newRow[columnMerge.name + 'SZ'] = prevRow[columnMerge.name + 'SZ'] + 1
+      }
+    })
+    rowsMerge.splice(rowsMerge.length, 0, newRow)
+    prevRow = newRow
+  })
+  columnsMerge.forEach((columnMerge, index) => {
+    if (rowsMerge.length > 0) {
+      (rowsMerge[rowsMerge.length - prevRow[columnMerge.name + 'SZ'] - 1])[columnMerge.name + 'SZ'] = prevRow[columnMerge.name + 'SZ']
+    }
+  })
+  console.log('Hi~hi~')
+  console.log(rowsMerge)
+}

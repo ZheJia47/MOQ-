@@ -1,0 +1,4705 @@
+require('dotenv').load()
+var express = require('express')
+var moment = require('moment')
+var path = require('path')
+var fs = require('fs')
+// var util = require('util')
+var formidable = require('formidable')
+var morgan = require('morgan')
+var bodyParser = require('body-parser')
+// var jwt = require('jsonwebtoken')
+// var expressJwt = require('express-jwt')
+// var mongoose = require('mongoose')
+// mongoose.connect('mongodb://localhost/vuelogin')
+// var User = require('./models')
+var MongoClient = require('mongodb').MongoClient
+var ObjectID = require('mongodb').ObjectID
+var config = require('./index.js')
+var opcodes = require('./opcodes.js')
+var io = require('socket.io')
+var app = express()
+var http = require('http')
+var server = http.createServer(app)
+require('./Utilization.js')()
+require('./Abnormal.js')()
+require('./AbnormalTable.js')()
+require('./DefectiveTable.js')()
+
+app.set('port', process.env.PORT || 3000)
+
+app.use(bodyParser.urlencoded({ extended: true }))
+app.use(bodyParser.json())
+app.use(morgan('dev'))
+app.all('*', function (req, res, next) {
+  // res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Origin', 'http://localhost:8080')
+  res.header('Access-Control-Allow-Headers', 'X-Requested-With')
+  res.header('Access-Control-Allow-Methods', 'POST,GET')
+  res.header('Access-Control-Allow-Credentials', true)
+  res.header('X-Powered-By', ' 3.2.1')
+  res.header('Content-Type', 'application/json;charset=utf-8')
+  next()
+})
+app.get('/api/testDateTime', function (req, res) {
+  console.log('1')
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    console.log('2')
+    var m = moment(moment('2018-06-16 12:00:00', 'YYYY-MM-DD HH:mm:ss').add(2,'hours')).toDate()
+    console.log(m)
+    client.db('timeTest').collection('momentToDate').find({'Now':  { $gt: m }}).toArray(function (err, docs) {
+      console.log('3')
+      docs.forEach(doc => {
+        console.log('5')
+        console.log(doc)
+        console.log(moment(doc['Now']).format('YYYY/MM/DD HH:mm:ss'))
+      })
+      console.log('4')
+      res.send({
+        type: true,
+        data: docs
+      });
+    })
+  })
+})
+/*
+var auth = expressJwt({ secret: process.env.JWT_SECRET });
+
+app.post('/api/login', function(req, res) {
+  User.findOne({name: req.body.name, password: req.body.password}, function(err, user) {
+    if (err) {
+      res.send({
+        type: false,
+        data: "Error occured: " + err
+      });
+    } else {
+      if (user) {
+        var expiry = new Date();
+        expiry.setDate(expiry.getDate() + 7);
+        var token = jwt.sign({
+          _id: user._id,
+          email: user.email,
+          name: user.name,
+          exp:parseInt(expiry.getTime()/1000)
+        },process.env.JWT_SECRET);
+        res.send({
+          type: true,
+          data: user,
+          token: token
+        });
+      } else {
+        res.send({
+          type: false,
+          data: "用戶未註冊"
+        });
+      }
+    }
+  });
+});
+
+app.post('/api/logout',auth, function(req, res) {
+  res.send({
+    type: "1"
+  })
+});
+
+app.post('/api/reg', function(req, res) {
+  User.findOne({name: req.body.name, password: req.body.password}, function(err, user) {
+    if (err) {
+      res.send({
+        type: false,
+        data: "Error occured: " + err
+      });
+    } else {
+      if (user) {
+        res.send({
+          type: false,
+          data: "用戶已註冊"
+        });
+      } else {
+        var userModel = new User();
+        userModel.name = req.body.name;
+        userModel.password = req.body.password;
+        userModel.save(function(err, user) {
+          user.save(function(err, user1) {
+            var expiry = new Date();
+            expiry.setDate(expiry.getDate() + 7);
+            var token = jwt.sign({
+              _id: user._id,
+              email: user.email,
+              name: user.name,
+              exp:parseInt(expiry.getTime()/1000)
+            },process.env.JWT_SECRET);
+            res.send({
+              type: true,
+              data: user,
+              token: token
+            });
+          });
+        })
+      }
+    }
+  });
+});
+
+app.use(function(err, req, res, next) {
+  if (err.name == 'UnauthorizedError') {
+    res.status(401);
+    res.send({ message: err.name + ":" + err.message });
+  }
+});
+*/
+app.get('/api/getDetectiveTableData/:machineIDArr/:from/:to/:index', function (req, res) {
+  var machineIDs = req.params.machineIDArr.split(",")
+  var index = req.params.index
+console.log('getdetectiveTableData`');
+//console.log('machineIDs : ' + machineIDs)
+
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+//console.log([from.toString(), to.toString()])
+	
+	//machineIDs = ["1A01", "1A02"]
+	
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+console.log('failed to connect')
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName);
+
+      getDetectiveTableDataMachineRecords (db, machineIDs, from, to, index, function(detectiveTableDataReport) {
+	  //console.log('detectiveTableDataReport : ' +  JSON.stringify(detectiveTableDataReport))
+
+	  // temperary fill in
+	  if ( detectiveTableDataReport.length == 0 ) {
+		console.log('data empty')
+	 	var defectiveData = {
+		    arm : 0,
+		    machine: 0,
+		    change: 0,
+		    moldCount : 0,
+		    targetCount : 0,
+		    warehousing : 0,
+		    index : index,
+		    badNum: 0,
+	   	    badRate: 0
+		}
+		detectiveTableDataReport[machineIDs[0]] = defectiveData
+	  }
+
+	  res.send({
+	      type:true,
+	      data: detectiveTableDataReport
+	  })
+      })
+    }
+  })      
+})
+app.get('/api/getMOQAnalysis/:machineIDArr/:from/:to/', function (req, res) {
+  var machineIDs = req.params.machineIDArr.split(",")
+console.log('getMOQAnalysis');
+//console.log('machineIDs : ' + machineIDs)
+
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+//console.log([from.toString(), to.toString()])
+	
+	//machineIDs = ["1A01", "1A02"]
+	
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+console.log('failed to connect')
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName);
+      var totalProducts = []
+      var orderRecords = []
+      var orderReports = []
+
+      getMachineProductRecords(db, machineIDs, from, to, function(totalProducts) {
+
+	while ( totalProducts.length > 0 ) {
+	  retrieveEachOrderRecords(totalProducts, function(orderRecords) {
+	    var orderData = []
+			    	  
+	    orderData = buildMOQAnalysisData( orderRecords )
+
+	    orderReports.push( orderData )
+					     
+	    if ( totalProducts.length == 0 ) {
+	      //console.log( 'in orderReport[0] : ' + JSON.stringify(orderReports[0]) )
+	      return( orderReports )
+	    }
+	  	      	      	    	    
+	   })
+
+	   if ( totalProducts.length == 0 ) {
+	     res.send({
+		type: true,
+		data: orderReports
+	     })
+	   }
+	} // while
+      })      
+    }
+  })
+})
+app.get('/api/getDetectiveData1/:from/:to', function (req, res) {
+  var fromRecv = req.params.from
+  var toRecv = req.params.to
+  console.log(fromRecv)
+  var monthCnt = moment(toRecv).diff(moment(fromRecv), 'M') + 1
+  var from = moment(moment(fromRecv + '-01').date(1).format('YYYY-MM-DD 00:00:00')).toDate()
+  var to = moment(moment(toRecv + '-01').add(1, 'month').date(0).format('YYYY-MM-DD 23:59:59')).toDate()
+
+  /* var reportDate = moment(req.params.reportDate).format('YYYY-MM-DD HH:mm:ss')
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(reportDate).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  // var to = moment(moment(reportDate).format('YYYY-MM-DD 23:59:59')).toDate() */
+  // var to = moment(moment(from).add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  console.log(from)
+  console.log(to)
+  // var from = moment(moment(reportDate).format('YYYY-MM-DD')).toDate()
+  // var to = moment(moment(reportDate).format('YYYY-MM-DD 23:59:59')).toDate()
+  console.log('fromRecv')
+  // console.log(moment(fromRecv, 'M'))
+  console.log(moment(fromRecv).format('YYYY/M'))
+  var idx = 0
+  var machines = {}
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var promises = []
+      var docs = ['1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08','1A09']
+        docs.forEach(doc => {
+          var machineID = doc
+          promises.push(getEachMachineRecords1(client.db(config.dbName), machineID, from, to).then(results => {
+            machines[machineID] = results
+          }))
+        })
+      retArray = []
+      var nameInfoStr = [{key: 'arm', value: '機械手警報次數'},
+        {key: 'machine', value: '成型機警報次數'},
+        {key: 'change', value: '換模次數'},
+        {key: 'produce', value: '生產模次'},
+        {key: 'pred', value: '應產數量'},
+        {key: 'safe', value: '入庫數量'},
+        {key: 'bad', value: '不良數量'},
+        {key: 'defective', value: '平均不良率'}
+      ]
+      Promise.all(promises).then(() => {
+        docs.forEach(doc => { // 1A01
+          nameInfoStr.forEach(nameInfo => { // 每個項目逐一處理
+            retArray.splice(retArray.length, 0, {
+              department: '成型一課',
+              zone: '1A區',
+              machineID: doc,
+              nameInfo: nameInfo.value
+            })
+            var obj = {}
+            for (var ind = 0; ind < monthCnt; ind++) { // monthCnt 只是累計的月份，不適要拜訪的月份，因此跨年度會有問題
+              machines[doc].forEach(elm => {
+                var mCnt = -1
+                var trigTime = elm.trigTime || ''
+                if (trigTime !== '') {
+                  mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                }
+                var orderNumber = elm.orderNumber || ''
+                if ((mCnt === ind) && (orderNumber !== '')) {
+                  if (!obj.hasOwnProperty(orderNumber)) {
+                    obj[orderNumber] = elm
+                  }
+                }
+              })
+              objArray = Object.keys(obj).map(i => obj[i])
+              if (doc === '1A04') {
+                console.log(objArray)
+              }
+              switch (nameInfo.key) {
+                case nameInfoStr[0].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    return item.note === '機械手故障'
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc++
+                  }, 0))
+                  break
+                case nameInfoStr[1].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    return item.note === '成型機故障'
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc++
+                  }, 0))
+                  break
+                case nameInfoStr[2].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    return item.note === '更換模具、模仁'
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc++
+                  }, 0))
+                  break
+                case nameInfoStr[3].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.moldCount
+                  }, 0))
+                  break
+                case nameInfoStr[4].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    var cavities = acc.cavities + 0
+                    return acc + curr.moldCount * parseInt(cavities)
+                  }, 0) + 0) || 0
+                  break
+                case nameInfoStr[5].key:
+                  retArray[retArray.length - 1][ind.toString()] = (objArray.reduce(function(acc, curr, currIndex, arr) {
+                    var warehousing = curr.warehousing 
+                  return acc + warehousing
+                  }, 0))
+                  break
+                case nameInfoStr[6].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.badNum
+                  }, 0))
+                  break
+                case nameInfoStr[7].key:
+                  retArray[retArray.length - 1][ind.toString()] = (((machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.badNum
+                  }, 0))) / (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.moldCount * parseInt(acc.cavities)
+                  }, 0)) + 0) || 0
+                  break
+              }
+            }
+          })
+        })
+        res.send({
+          type: true,
+          data: retArray
+        })
+      })
+    }
+  })
+})
+app.get('/api/getDetectiveData/:from/:to', function (req, res) {
+  var fromRecv = req.params.from
+  var toRecv = req.params.to
+  var monthCnt = moment(toRecv).diff(moment(fromRecv), 'M') + 1
+  var from = moment(moment(fromRecv).date(1).format('YYYY-M-D 00:00:00')).toDate()
+  var to = moment(moment(toRecv).add(1, 'month').date(0).format('YYYY-M-D 23:59:59')).toDate()
+  console.log(from)
+  console.log(to)
+  // var from = moment(moment(reportDate).format('YYYY-MM-DD')).toDate()
+  // var to = moment(moment(reportDate).format('YYYY-MM-DD 23:59:59')).toDate()
+  var idx = 0
+  var machines = {}
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var promises = []
+      var docs = ['1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08','1A09']
+        docs.forEach(doc => {
+          var machineID = doc
+          promises.push(getEachMachineRecords1(client.db(config.dbName), machineID, from, to).then(results => {
+            machines[machineID] = results
+          }))
+        })
+      retArray = []
+      var nameInfoStr = [{key: 'arm', value: '機械手警報次數'},
+        {key: 'machine', value: '成型機警報次數'},
+        {key: 'change', value: '換模次數'},
+        {key: 'produce', value: '生產模次'},
+        {key: 'pred', value: '應產數量'},
+        {key: 'safe', value: '入庫數量'},
+        {key: 'bad', value: '不良數量'},
+        {key: 'defective', value: '平均不良率'}
+      ]
+      Promise.all(promises).then(() => {
+        docs.forEach(doc => {
+          nameInfoStr.forEach(nameInfo => {
+            retArray.splice(retArray.length, 0, {
+              department: '成型一課',
+              zone: '1A區',
+              machineID: doc,
+              nameInfo: nameInfo.value
+            })
+            var obj = {}
+            for (var ind = 0; ind < monthCnt; ind++) {
+              machines[doc].forEach(elm => {
+                var mCnt = -1
+                var trigTime = elm.trigTime || ''
+                if (trigTime !== '') {
+                  mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                }
+                var orderNumber = elm.orderNumber || ''
+                if ((mCnt === ind) && (orderNumber !== '')) {
+                  if (!obj.hasOwnProperty(orderNumber)) {
+                    obj[orderNumber] = elm
+                  }
+                }
+              })
+              objArray = Object.keys(obj).map(i => obj[i])
+              if (doc === '1A04') {
+                console.log(objArray)
+              }
+              switch (nameInfo.key) {
+                case nameInfoStr[0].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    return item.note === '機械手故障'
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc++
+                  }, 0))
+                  break
+                case nameInfoStr[1].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    return item.note === '成型機故障'
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc++
+                  }, 0))
+                  break
+                case nameInfoStr[2].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    return item.note === '更換模具、模仁'
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc++
+                  }, 0))
+                  break
+                case nameInfoStr[3].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.moldCount
+                  }, 0))
+                  break
+                case nameInfoStr[4].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    var cavities = acc.cavities + 0
+                    return acc + curr.moldCount * parseInt(cavities)
+                  }, 0) + 0) || 0
+                  break
+                case nameInfoStr[5].key:
+                  retArray[retArray.length - 1][ind.toString()] = (objArray.reduce(function(acc, curr, currIndex, arr) {
+                    var warehousing = curr.warehousing 
+                  return acc + warehousing
+                  }, 0))
+                  break
+                case nameInfoStr[6].key:
+                  retArray[retArray.length - 1][ind.toString()] = (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.badNum
+                  }, 0))
+                  break
+                case nameInfoStr[7].key:
+                  retArray[retArray.length - 1][ind.toString()] = (((machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.badNum
+                  }, 0))) / (machines[doc].filter(function(item, index, array) {
+                    var mCnt = -1
+                    var trigTime = item.trigTime || ''
+                    if (trigTime !== '') {
+                      mCnt = moment(trigTime).diff(moment(fromRecv), 'M')
+                    }
+                    return ((item.machineStatusType === '全自動') || (item.machineStatusType === '半自動')) && (item.orderNumber !== '') && (mCnt === ind)
+                  }).reduce(function(acc, curr, currIndex, arr) {
+                    return acc + curr.moldCount * parseInt(acc.cavities)
+                  }, 0)) + 0) || 0
+                  break
+              }
+            }
+          })
+        })
+        res.send({
+          type: true,
+          data: retArray
+        })
+      })
+    }
+  })
+})
+function getEachMachineRecords1 (db, machineID, from, to) {
+  return new Promise((resolve, reject) => {
+    var records = []
+    var col = db.collection(machineID)
+    // console.log(machineID)
+    // console.log([db, machineID, from, to, machines])
+    col.find({trigTime: {$gte: from, $lt: to}, lastTrigTime: {$gte: from}, machineStatusType: {$ne: '系統啟動'}}).toArray(function (err, docs) {
+      if (err) {
+        reject(err)
+      } else {
+        // console.log('from')
+        // console.log(docs)
+        docs.forEach(doc => {
+          if (doc['orderNumber'] !== undefined) {
+            records.push(doc)
+          }
+        })
+        resolve(records)
+        // console.log(from)
+        // console.log(to)
+      }
+    })
+  })
+}
+app.get('/api/getNoteSelectedItem/', function (req, res) {
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else { 
+      client.db(config.dbName).collection('sysConfig').findOne({_id: 'noteInfo'}, function(err0, docs0) {
+        if (err0) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err0
+          })
+        } else {
+          res.send({
+            type: true,
+            data: docs0
+          })
+        }
+      })
+    }
+  })
+})
+app.get('/api/getMachineListRecords/:department/:zone/:reportDate', function (req, res) {
+  var reportDate = moment(req.params.reportDate).format('YYYY-MM-DD HH:mm:ss')
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(reportDate).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(from).add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var department = req.params.department
+  var zone = req.params.zone
+  // var reportDate = req.params.reportDate
+  // var from = moment(moment(reportDate).format('YYYY-MM-DD')).toDate()
+  // var to = moment(moment(reportDate).format('YYYY-MM-DD 23:59:59')).toDate()
+  var idx = 0
+  var retArray = []
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {     
+      client.db(config.dbName).collection(config.machineListColName).find({'department': department}).sort({'machineID': 1}).toArray(function(err0, docs0) {
+        if (err0) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err0
+          })
+        } else {          
+          var idx= 0
+          console.log(docs0)
+          docs0.forEach(doc0 => {
+            var col = client.db(config.dbName).collection(doc0.machineID)
+            col.find({trigTime: {$gte: from, $lt: to}}).toArray(function (err1, docs1) {
+              if (err1) {
+                res.send({
+                  type: false,
+                  data: 'Error occured: ' + err1
+                })
+              } else {
+                idx++
+                docs1.forEach(doc1 => {
+                  if (doc1['orderNumber'] === undefined) {
+                    doc1['orderNumber'] = ''
+                  }
+                  retArray.splice(retArray.length, 0, doc1)
+                })
+                if(idx === docs0.length) {
+                  res.send({
+                    type: true,
+                    data: retArray
+                  })
+                }
+              }
+            })
+          })
+        }
+      })
+    }
+  })
+})
+app.get('/api/getDepartmentList/:department', function (req, res) {
+  var department = req.params.department
+  // console.log(machineID)
+  // MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+  MongoClient.connect(config.dbUrl, function(err0, client){
+    if (err0) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err0
+      })
+    } else {
+      var col = client.db(config.dbName).collection(config.machineListColName)
+      col.find().toArray(function (err, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {
+          var departmentObj = {}
+          var zoneObj = {}
+          docs.forEach(element => {
+            if(!departmentObj.hasOwnProperty(element['department'])) {
+              departmentObj[element['department']] = Object.keys(departmentObj).length
+            }
+            if(element['department'] === department) {
+              var machineIDsplit = (element['machineID']).substr(0, 2)
+              if(!zoneObj.hasOwnProperty(machineIDsplit)) {
+                zoneObj[machineIDsplit] = Object.keys(zoneObj).length
+              }
+            }
+          })
+          res.send({
+            type: true,
+            data: {
+              department: departmentObj,
+              zone: zoneObj
+            }
+          })
+          console.log({
+            department: departmentObj,
+            zone: zoneObj
+          })
+        }
+      })
+    }
+  })
+})
+app.get('/api/getDailyIntegratedReport/:department/:zone/:reportDate', function (req, res) {
+  var department = req.params.department
+  var zone = req.params.zone
+  // var reportDate = req.params.reportDate
+  // var from = moment(moment(reportDate).format('YYYY-MM-DD')).toDate()
+  // var to = moment(moment(reportDate).format('YYYY-MM-DD 23:59:59')).toDate()
+  var reportDate = moment(req.params.reportDate).format('YYYY-MM-DD HH:mm:ss')
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(reportDate).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(from).add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var arrayRes = Array(6)
+  var retObj = {}
+  var test = {}
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      client.db(config.dbName).collection(config.machineListColName).find({'department': department}).sort({'machineID': 1}).toArray(function(err0, docs0) {
+        if (err0) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err0
+          })
+        } else {          
+          var idx= 0
+          docs0.forEach(doc0 => {
+            client.db(config.dbName).collection(doc0.machineID).find({trigTime: {$gte: from, $lt: to},
+              $where: 'this.orderNumber.length > 3',
+              orderNumber: {$type : "string"}
+            }).sort({'orderNumber': 1, 'trigTime': 1}).toArray(function(err1, docs1) {
+              if (err1) {
+                console.log('Error occured: ' + err0)
+              } else {
+                if(!test.hasOwnProperty(doc0.machineID)) {
+                  test[doc0.machineID] = idx++
+                }
+                // var idx = 0
+                var retArray = []
+                var propIdx = 0
+                var propObj = {}
+                if(docs1.length > 0) {
+                  docs1.forEach(doc1 => {
+                    if(!propObj.hasOwnProperty(doc1.orderNumber)) {
+                      propObj[doc1.orderNumber] = propIdx++
+                    }
+                  })
+                  //var size = Object.keys(propObj).length
+                  Object.keys(propObj).map(function(objectKey, indexMap) {
+                    var value = propObj[objectKey]
+                    var orderNumberDocs = docs1.filter(function(val) {
+                      if(val.orderNumber === objectKey) {
+                        return val
+                      }
+                    })
+                    console.log(doc0.machineID)
+                    // if (doc0.machineID === '1A03') {
+                    var filterAuto = orderNumberDocs.filter(function(val, index) {
+                      if((val['machineStatusType'] === '半自動') || (val['machineStatusType'] === '全自動')) {
+                        return val
+                      }
+                    })
+                    if (filterAuto.length === 0) {
+                      return
+                    }
+                    var filterAutoAlm = orderNumberDocs.filter(function(val, index) {
+                      if((val['machineStatusType'] === '警報') && (val['machineStatus'] !== '通信失敗')) {
+                        return val
+                      }
+                    })
+                    /* filterAuto.forEach(elm => {
+                      console.log(elm.predMoldCnt)
+                    }) */
+                    console.log(doc0.machineID)
+                    // if (doc0.machineID === '1A03') {
+                    var total = ((filterAuto.filter(function(val, index, arr) {
+                      console.log(val)
+                      console.log(val.machineStatusType)
+                      var min = val.min || 0
+                        return min > 0
+                    })).sort(function(a,b) {
+                      return a.min > b.min ? 1 : -1
+                    }))
+                    var min = 0
+                    if (total.length !== 0) {
+                      min = total[0].min
+                    }
+                    var duration = (filterAuto.reduce(function (previousValue, currentValue, index, array) {
+                      console.log('duration')
+                      console.log(currentValue.lastTrigTime - currentValue.trigTime)
+                      return previousValue + (currentValue.lastTrigTime - currentValue.trigTime)
+                    }, 0))
+                    console.log(total)
+                    console.log(min)
+                    console.log('total.min || 0')
+                        retArray.splice(retArray.length, 0, {
+                          machineID: doc0.machineID,
+                          first: false,
+                          second: false,
+                          third: false,
+                          totalAlm: filterAutoAlm.length,
+                          orderNumber: filterAuto[0].orderNumber,
+                          product: filterAuto[0].product,
+                          cavities: filterAuto[0].cavities || 0,
+                          trigTime: filterAuto[0].trigTime,
+                          lastTrigTime: filterAuto[filterAuto.length - 1].lastTrigTime,
+                          duration: duration,
+                          moldCount: (filterAuto.reduce(function (previousValue, currentValue, index, array) {
+                            return previousValue + currentValue.moldCount  
+                          }, 0)),
+                          predProductCnt: (filterAuto.reduce(function (previousValue, currentValue, index, array) {
+                            return previousValue + currentValue.moldCount * currentValue.cavities 
+                          }, 0)),
+                          standard: filterAuto[0].standard,
+                          min: min,
+                          average: (duration
+                           / (filterAuto.reduce(function (previousValue, currentValue, index, array) {
+                            return previousValue + currentValue.moldCount  
+                          }, 0))),
+                          performance: 0,
+                          predMoldCnt: filterAuto[0].predMoldCnt,
+                          accMoldCnt: 0,
+                          percentage: filterAuto[0].accMoldCnt / filterAuto[0].predMoldCnt, 
+                          tgtfinishTime:  filterAuto[filterAuto.length - 1].lastTrigTime,
+                          deadline: filterAuto[filterAuto.length - 1].deadline
+                        })
+                  })
+                }
+                retObj[doc0.machineID] = retArray
+                var objKeys = Object.keys(retObj)
+                if(objKeys.length === docs0.length) {
+                  res.send({
+                    type: true,
+                    data: retObj
+                  })
+                }
+                /* if(idx === docs0.length) {
+                  res.send({
+                    type: true,
+                    data: retArray
+                  })
+                } */
+                // integratedDailyAcc(retArray)
+              }
+            })
+          })
+        }
+      })
+    }
+  })
+})
+function integratedDailyAcc(retArray) {
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var retAccArr = []
+      retArray.forEach(ret => {
+        var machineID = ret.machineID
+        var orderNumber = ret.orderNumber
+        var acc = 0
+        var predMoldCnt = 0
+        client.db(config.dbName).collection(machineID).find({$and: [{'orderNumber': orderNumber}, {$or: [{'machineStatusType': '半自動'}, {'machineStatusType': '全自動'}]}]}).toArray(function(err2, docs2) {
+          if (err2) {
+            acc = 0
+          } else {
+            predMoldCnt = docs2[0].predMoldCnt
+            console.log(predMoldCnt)
+            acc = docs2.reduce(function (previousValue, currentValue, index, array) {
+              return previousValue + currentValue.moldCount  
+            }, 0)
+          }
+          retAccArr.splice(retAccArr.length, 0, {
+            machineID: machineID,
+            orderNumber: orderNumber,
+            accMoldCnt: acc,
+            percentage: acc / predMoldCnt
+          })
+        })
+      })
+    }
+  })
+}
+//----------------------------------------------------------------------------
+app.get('/api/updateMonitorHWCfg/:department', function (req, res) {
+  var department = req.params.department
+  var arrayRes = Array(6)
+  var replacerArray = []
+  console.log('1')
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      console.log('2')
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      console.log('3')
+      var db = client.db(config.dbName)
+      var  i = 0
+      db.collection(config.machineListColName).find({'department': department}).count()
+        .then(function(idx0) {
+          arrayRes[0] = idx0
+        })
+      db.collection(config.machineListColName).find({'department': department}, {}, function (err0, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {          
+          var idx= 0
+          docs.forEach(doc0 => {
+            replacerArray.splice(replacerArray.length, 0, {
+              'machineID': doc0.machineID
+            })
+            idx++
+            if (arrayRes[0] === idx) {
+              var jsonText = JSON.stringify(replacerArray)
+              db.collection('lastDeviceID').find({'machineID': {$gte: '1A01', $lte: '1A09'}}).toArray( function (err1, docs1) {
+                if (err1) {
+                  res.send({
+                    type: false,
+                    data: 'Error occured: ' + err1
+                  })
+                } else {
+                  docs1.forEach(doc1 =>{
+                    db.collection(doc1.machineID).findOne({'_id': doc1.last}, function(err2, doc2) {
+                      for(recv in monitorModalClientList) {
+                        monitorModalClientList[recv].emit('showMachineSts', doc2)
+                      }
+                    })
+                  })
+                  var autoArray = docs1.filter((val) => {
+                    return val['STS'] === '全自動'
+                  })
+                  arrayRes[2] = autoArray.length
+                  autoArray = docs1.filter((val) => {
+                    return val['STS'] === '半自動'
+                  })
+                  arrayRes[3] = autoArray.length
+                  autoArray = docs1.filter((val) => {
+                    return val['STS'] === '手動'
+                  })
+                  arrayRes[4] = autoArray.length
+                  autoArray = docs1.filter((val) => {
+                    return val['STS'] === '關機'
+                  })
+                  arrayRes[5] = autoArray.length
+                  arrayRes[1] = arrayRes[2] + arrayRes[3]
+                  res.send({
+                    type: true,
+                    data: arrayRes
+                  })
+                }
+              })
+            }
+          }) 
+        }
+      })
+    }
+  })
+})
+app.get('/api/updateModalHWCfg/:machineID', function (req, res) {
+  var machineID = req.params.machineID
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName)
+      db.collection(config.machineListColName).find({'machineID': machineID}, {}, function (err0, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {
+          docs.forEach(doc0 => {
+            //console.log(doc0)
+            res.send({
+              type: true,
+              data: doc0
+            })
+          })
+        }
+      })
+    }
+  })
+})
+app.get('/api/getMachineCurrInfo/:machineID', function (req, res) {
+  var machineID = req.params.machineID
+  var _id = undefined
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName)
+      var col = db.collection('lastDeviceID')
+      col.find({'machineID': machineID}, {}, function (err, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {
+          console.log(machineID)
+          var col1 = db.collection(machineID)
+          docs.forEach(doc => {
+            console.log(doc.last)
+            _id = doc.last
+            col1.find({'_id': _id}, {}, function (err0, docs0) {
+              if (err0) {
+                console.log('ERRRR')
+                res.send({
+                  type: false,
+                  data: 'Error occured: ' + err0
+                })
+              } else {
+                docs0.forEach(doc0 => {
+                  console.log(doc0)
+                  res.send({
+                    type: true,
+                    data: doc0
+                  })
+                })
+              }
+            })
+          })   
+        }
+      })
+    }
+  })
+})
+app.get('/api/getMachineSts/:from/:to', function (req, res) {
+  var from = req.params.from
+  var to = req.params.to
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName)
+      var col = db.collection(config.machineListColName)
+      console.log('property')
+      console.log(hwCfgList)
+      console.log('1111111')
+      var selected = hwCfgList.filter(function (elm) {
+        console.log(elm['machineID'])
+        if ((from <= elm['machineID']) && (to >= elm['machineID']))
+        {
+          return elm
+        }
+      })
+      console.log('property')
+      console.log(selected)
+      selected.forEach(elm => {
+        console.log(elm['machineID'])
+        console.log(elm['propertyNum'])
+      })
+      col.find({'machineID': {$gte: from, $lt: to}}, {}, function (err, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {
+          docs.forEach(doc => {
+            console.log(doc.machineID)
+          })  
+          /* res.send({
+            type: true,
+            data: null
+          }) */
+        }
+      })
+    }
+    db.collection('lastDeviceID').find({}).toArray( function (err0, docs0){
+      if (err0) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err0
+        })
+      } else {
+        docs0.forEach(doc0 => {
+          console.log(doc0.machineID)
+          console.log(doc0.STS)
+        })
+        res.send({
+          type: true,
+          data: docs0
+        })
+      }
+    })
+  })
+})
+app.get('/api/updateShiftTable/:machineID/:tgtDate/:shift/:newData', function (req, res) {
+  var machineID = req.params.machineID
+  var tgtDate = req.params.tgtDate
+  var shift = req.params.shift
+  var newData = (req.params.newData === 'true')
+  console.log(machineID)
+  console.log(tgtDate)
+  console.log(shift)
+  console.log(newData)
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var year = moment(tgtDate, 'YYYY-MM-DD').add(0, 'd').format('Y')
+      var id = moment(tgtDate, 'YYYY-MM-DD').add(0, 'd').format('YYYY/M/DD')
+      var db = client.db('calendar' + year)
+      var col = db.collection(machineID)
+      //col.update({'_id': {$eq: id}}, {$set: {[shift]:newData}})
+      col.findOneAndUpdate({'_id': {$eq: id}}, {$set: {[shift]:newData}}, {returnOriginal: false}, function (err0, doc) {
+        if (err0) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err0
+          })
+        } else {
+          console.log(doc)
+          console.log(doc.value[shift])
+          res.send({
+            type: true,
+            data: doc.value[shift]
+          })
+        }
+      })
+    } 
+  })  
+})
+
+app.get('/api/getCalendar/:machineID/:year/:month/:day', function (req, res) {
+  var year =  req.params.year
+  var month = req.params.month
+  var day = req.params.day
+  var machineID = req.params.machineID // '1A09'
+  console.log(year+ '/' + month + '/' + day)
+  var V = config.dbUrl + 'calendar' + year
+  // MongoClient.connect(config.dbUrl + config.calendar).then(db => {
+  MongoClient.connect(config.dbUrl, function(err, client){ 
+    var db = client.db('calendar' + year)
+    var col = db.collection(machineID)
+    var index = 0
+    var docsN = []
+    col.find({'date': {$gte: new Date(year + '/' + month + '/' + day)}}).toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        if (docs.length > 0) { 
+          docs.forEach(doc => {
+            if (index < 7) {
+              docsN.push(doc)
+              index++
+            }
+          })
+          
+          res.send({
+            type: true,
+            data: docsN
+          })
+        }
+      }      
+    })
+  })
+})
+//---------------------------------------------------------------------------
+app.get('/api/getMachineRecords/:machineID/:reportDate', function (req, res) {
+  var machineID = req.params.machineID
+  var reportDate = moment(req.params.reportDate).format('YYYY-MM-DD HH:mm:ss')
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(reportDate).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  // var to = moment(moment(reportDate).format('YYYY-MM-DD 23:59:59')).toDate()
+  var to = moment(moment(from).add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  console.log(moment(moment(moment(req.params.reportDate).format('YYYY-MM-DD')).toDate()).add(8,'hours').format('YYYY/M/DD HH:mm:ss'))
+  console.log(subStr[0])
+  console.log(parseInt(subStr[0]))
+  console.log(from)
+  console.log(to)
+  // console.log([from, to])
+  // MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+  // , function (err, client) {
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    if (err0) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    } else {
+      var col = client.db(config.dbName).collection(machineID)
+      // col.find({Trig_Time: {$gte: date}}).toArray(function (err, docs) {
+      // col.find().toArray(function (err, docs) {
+      col.find({trigTime: {$gte: from, $lt: to}}).toArray(function (err, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {
+          docs.forEach(doc => {
+            if (doc['orderNumber'] === undefined) {
+              doc['orderNumber'] = ''
+            }
+          })
+          // console.log(JSON.stringify(docs, null, 2))
+          res.send({
+            type: true,
+            data: docs
+          })
+        }
+        // db.close()
+      })
+    }
+  }) /* .catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  }) */
+})
+app.get('/api/getCalendar/:machineID/:year', function (req, res) {
+  var year = req.params.year
+  var machineID = req.params.machineID
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    if (err0) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err0
+      })
+    } else {
+      client.db(config.calendarDbNamePrefix + year).collection(machineID).find().toArray(function (err, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {
+          // console.log(JSON.stringify(docs, null, 2))
+          res.send({
+            type: true,
+            data: docs
+          })
+        }
+      })
+    }
+  })
+})
+app.get('/api/calendar/:machineID/:year', function (req, res) {
+  var year = req.params.year
+  var machineID = req.params.machineID
+  MongoClient.connect(config.dbUrl + config.calendarDbNamePrefix + year).then(db => {
+    var col = db.collection(machineID)
+    // col.find({Trig_Time: {$gte: date}}).toArray(function (err, docs) {
+    // col.find().toArray(function (err, docs) {
+    col.find().toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        // console.log(JSON.stringify(docs, null, 2))
+        res.send({
+          type: true,
+          data: docs
+        })
+      }
+      db.close()
+    })
+  }).catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.calendarDbNamePrefix + year}`
+      })
+    }
+  })
+})
+
+/*
+app.post('/api/setRecordOrderNumber/:machineID', function (req, res) {
+  // console.log(JSON.stringify(req.params.machineID, null, 2))
+  // console.log(JSON.stringify(req.body, null, 2))
+  {
+    "action": "edit",
+      "data": {
+        "59c8e771d485cdca196cc0da": {
+          "orderNumber": "2"
+        }
+      }
+  }
+
+  var id = Object.keys(req.body.data)[0]
+  var machineID = req.params.machineID
+  var orderNumber = req.body.data[id]['orderNumber']
+
+  MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+    var col = db.collection(machineID)
+
+    // find the original record, because we need to get complete information for response
+    col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var oldProduct
+        var newProduct
+
+        if (docs.length === 0) {
+          console.log('no data')
+          res.send({
+            type: false,
+            'data': [
+            ]
+          })
+        } else {
+          var doc = docs[0]
+
+          // use to compare the new value has updated
+          oldProduct = doc['product']
+
+          // notify the server that the order number is changed, and wait for product update
+          col = db.collection(config.calHandleCommandColName)
+          col.insertOne({
+            id: id,
+            machineID: machineID,
+            orderNumber: orderNumber,
+            opcode: opcodes.set_order_opcode
+          }).then(result => {
+            // console.log(result)
+            col = db.collection(machineID)
+            var timeout = 0
+
+            // query the change per second
+            var waitFunc = setInterval(function () {
+              timeout++
+              // doc['orderNumber'] = orderNumber
+
+              // maximum wait 30 secs, if timeout, just reply the origin record
+              if (timeout >= 30) {
+                clearInterval(waitFunc)
+                res.send({
+                  'data': [
+                    doc
+                  ]
+                })
+                db.close()
+              } else {
+                // query the record and judge the product has changed or not yet
+                col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+                  if (err) {
+                    res.send({
+                      type: false,
+                      data: 'Error occured: ' + err
+                    })
+                  } else {
+                    if (docs.length === 0) {
+                      console.log('no data')
+                      res.send({
+                        type: false,
+                        'data': [
+                        ]
+                      })
+                    } else {
+                      doc = docs[0]
+                      newProduct = doc['product']
+                      if (oldProduct !== undefined && newProduct !== undefined && oldProduct !== newProduct) {
+                        clearInterval(waitFunc)
+                        res.send({
+                          'data': [
+                            doc
+                          ]
+                        })
+                        db.close()
+                      }
+                    }
+                  }
+                })
+              }
+            }, 1000)
+          })
+        }
+      }
+    })
+  }).catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  })
+})
+*/
+
+app.get('/api/getOrderList', function (req, res) {
+  // MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    var col = client.db(config.dbName).collection(config.orderListColName)
+    col.find().toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        // console.log(JSON.stringify(docs, null, 2))
+        res.send({
+          type: true,
+          data: docs
+        })
+      }
+      // db.close()
+    })
+  }) /* .catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  }) */
+})
+
+app.get('/api/getMachineList', function (req, res) {
+  // console.log(machineID)
+  // MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    if (err0) {
+
+    } else {
+      var col = client.db(config.dbName).collection(config.machineListColName)
+      col.find().toArray(function (err, docs) {
+        if (err) {
+          res.send({
+            type: false,
+            data: 'Error occured: ' + err
+          })
+        } else {
+          res.send({
+            type: true,
+            data: docs
+          })
+        }
+      // db.close()
+      })
+    }
+  }) /* .catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  }) */
+})
+
+app.get('/api/getDepartmentList', function (req, res) {
+  // console.log(machineID)
+  var departmentList = []
+  // MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    var col = client.db(config.dbName).collection(config.machineListColName)
+    col.find().toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        docs.forEach(doc => {
+          if (departmentList.indexOf(doc.department) === -1) {
+            departmentList.push(doc.department)
+          }
+        })
+        res.send({
+          type: true,
+          data: departmentList
+        })
+      }
+      // db.close()
+    })
+  }) /* .catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  }) */
+})
+
+app.post('/api/fileUpload', function (req, res) {
+  // console.log(JSON.stringify(req.body, null, 2))
+  var form = new formidable.IncomingForm()
+  form.parse(req, function (err, fields, files) {
+    if (err) {
+      throw err
+    }
+    // console.log(files)
+    var oldpath = files.file.path
+    var newpath = path.resolve(path.join(config.uploadFolder) + files.file.name)
+    // console.log(newpath)
+    var readStream = fs.createReadStream(oldpath)
+    var writeStream = fs.createWriteStream(newpath)
+
+    readStream.pipe(writeStream)
+    readStream.on('end', function () {
+      // Operation done
+      fs.unlinkSync(oldpath)
+      res.send({
+        type: true,
+        data: [{
+        }]
+      })
+      // MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+      MongoClient.connect(config.dbUrl, function (err0, client) {
+        var col = client.db(config.dbName).collection(config.calHandleCommandColName)
+        col.insertOne({
+          fileName: files.file.name,
+          opcode: opcodes.notify_upload_opcode
+        })/* .then(result => {
+          db.close()
+        }) */
+      })
+    })
+  })
+})
+
+app.get('/api/getFileMappingTable', function (req, res) {
+  // console.log(machineID)
+  MongoClient.connect(config.dbUrl + config.fileMappingDbName).then(db => {
+    var col = db.collection(config.fileNameColName)
+    col.find().toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        res.send({
+          type: true,
+          data: docs
+        })
+      }
+      db.close()
+    })
+  }).catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  })
+})
+
+app.post('/api/setFileName', function (req, res) {
+  // console.log(JSON.stringify(req.body, null, 2))
+  res.send({
+    type: true
+  })
+  MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+    var col = db.collection(config.calHandleCommandColName)
+    col.insertOne({
+      opcode: opcodes.set_file_name_opcode,
+      tgtDocId: req.body.type,
+      fileName: req.body.name
+    }).then(result => {
+      db.close()
+    })
+  })
+})
+
+app.post('/api/setSheetName', function (req, res) {
+  // console.log(JSON.stringify(req.body, null, 2))
+  res.send({
+    type: true
+  })
+  MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+    var col = db.collection(config.calHandleCommandColName)
+    col.insertOne({
+      opcode: opcodes.set_sheet_name_opcode,
+      tgtDocId: req.body.type,
+      sheetName: req.body.name
+    }).then(result => {
+      db.close()
+    })
+  })
+})
+
+app.post('/api/setIndexName', function (req, res) {
+  // console.log(JSON.stringify(req.body, null, 2))
+  res.send({
+    type: true
+  })
+  MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+    var col = db.collection(config.calHandleCommandColName)
+    col.insertOne({
+      opcode: opcodes.set_index_name_opcode,
+      tgtDocId: req.body.type,
+      keyName: req.body.name
+    }).then(result => {
+      db.close()
+    })
+  })
+})
+
+app.post('/api/uploadAllFiles', function (req, res) {
+  // console.log(JSON.stringify(req.body, null, 2))
+  res.send({
+    type: true
+  })
+  MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+    var col = db.collection(config.calHandleCommandColName)
+    col.insertOne({
+      opcode: opcodes.upload_all_files
+    }).then(result => {
+      db.close()
+    })
+  })
+})
+/*
+app.get('/api/staff', function (req, res) {
+  // console.log(machineID)
+  res.send({
+    "data": [
+      {
+        "DT_RowId": "row_1",
+        "first_name": "Tiger",
+        "last_name": "Nixon",
+        "position": "System Architect",
+        "email": "t.nixon@datatables.net",
+        "office": "Edinburgh",
+        "extn": "5421",
+        "age": "61",
+        "salary": "320800",
+        "start_date": "2011-04-25"
+      },
+      {
+        "DT_RowId": "row_2",
+        "first_name": "Garrett",
+        "last_name": "Winters",
+        "position": "Accountant",
+        "email": "g.winters@datatables.net",
+        "office": "Tokyo",
+        "extn": "8422",
+        "age": "63",
+        "salary": "170750",
+        "start_date": "2011-07-25"
+      }
+    ],
+    "options": [],
+    "files": []
+  })
+})
+
+app.post('/api/staff', function (req, res) {
+  // console.log(machineID)
+  res.send({
+    "data": [
+      {
+        "DT_RowId": "row_5",
+        "first_name": "Airi",
+        "last_name": "Satou",
+        "position": "asdadsad",
+        "email": "a.satou@datatables.net",
+        "office": "Tokyo",
+        "extn": "5407",
+        "age": "33",
+        "salary": "162700",
+        "start_date": "2008-11-28"
+      }
+    ]
+  })
+})
+*/
+
+function getEachMachineRecords (db, machineID, from, to) {
+  return new Promise((resolve, reject) => {
+    var records = []
+    var col = db.collection(machineID)
+
+    // console.log(machineID)
+    // console.log([db, machineID, from, to, machines])
+    col.find({trigTime: {$gte: from, $lt: to}, lastTrigTime: {$gte: from}, machineStatusType: {$ne: '系統啟動'}}).toArray(function (err, docs) {
+      if (err) {
+        reject(err)
+      } else {
+        docs.forEach(doc => {
+          if (doc['orderNumber'] !== undefined) {
+            records.push(doc)
+          }
+        })
+        resolve(records)
+      }
+    })
+  })
+}
+
+
+function getEachMachineProductRecords (db, machineID, from, to, callback) {
+    var col = db.collection(machineID)
+    var records = []
+
+    //console.log(machineID)
+    col.find({trigTime: {$gte: from, $lt: to}, lastTrigTime: {$gte: from}}).toArray(function (err, docs) {
+      if (err) {
+	console.log( 'err' )
+        reject(err)
+      } else {
+	var j
+
+	for ( j = 0  ; j < docs.length ; j++ ) {
+          if ((docs[j].orderNumber !== undefined) && (docs[j].orderNumber !== "") && (docs[j].orderNumber !== null)) {
+	    records.push( docs[j] )
+          }
+        }
+        //console.log('records.length : ' + records.length)
+      }
+      //console.log('records.length : ' + records.length)
+      callback(records)
+    })
+} 
+
+
+function getMachineProductRecords (db, machineIDs, from, to, callback) {
+  var totalRecords = []
+  var i
+  //var records = []
+//console.log('machineIDs.length : ' +  machineIDs.length)
+
+  var tmp = 0
+
+  for ( i = 0 ; i < machineIDs.length ; i++ ) {
+    //console.log( 'i : ' + i )
+
+    getEachMachineProductRecords (db, machineIDs[i], from, to, function(records) {
+      tmp++
+      //console.log( 'tmp : ' + tmp )
+      //console.log('EachMachine record : ' +  records.length)
+      totalRecords = totalRecords.concat(records)
+      //console.log('totleRecords : ' + totalRecords.length)
+
+      if ( tmp == machineIDs.length ) {
+    	//console.log( 'callback ')
+	callback( totalRecords )
+      }
+    })
+  }
+}
+
+
+function getEachMachineMoldProductRecords (db, machineID, moldNum, from, to, callback) {
+    var col = db.collection(machineID)
+    var records = []
+
+//console.log('getEachMachineMoldProductrecords')
+//    console.log(machineID)
+    col.find({moldNum: moldNum, trigTime: {$gte: from, $lt: to}, lastTrigTime: {$gte: from}}).toArray(function (err, docs) {
+      if (err) {
+	console.log( 'err' )
+        //reject(err)
+      } else {
+	callback(docs)
+        //console.log('docs.length : ' + docs.length)
+      }
+    })
+} 
+
+
+function getProductOrderEachMachineRecords (db, machineID, product, from, to, callback) {
+    var col = db.collection(machineID)
+    var records = []
+
+//console.log('getEachMachineMoldProductrecords')
+//    console.log(machineID)
+    col.find({product: product, orderNumber:{$exists:true,$nin:[null,""]}, trigTime: {$gte: from, $lt: to}, lastTrigTime: {$gte: from}}).toArray(function (err, docs) {
+      if (err) {
+	console.log( err )
+        //reject(err)
+      } else {
+        //console.log('docs.length : ' + docs.length)
+	callback(docs)
+      }
+    })
+} 
+
+
+function getMachineMoldProductAnalysisRecords (db, machineIDs, moldNum, from, to, callback) {
+
+//function getMachineMoldProductRecords (db, machineIDs, from, to, callback) {
+  var totalRecords = []
+  var i
+  //var records = []
+//console.log('getMachineMoldProductrecords')
+//console.log('machineIDs.length : ' +  machineIDs.length)
+//console.log('machineIDs : ' +  machineIDs)
+
+  var tmp = 0
+
+  for ( i = 0 ; i < machineIDs.length ; i++ ) {
+
+    getEachMachineMoldProductRecords (db, machineIDs[i], moldNum, from, to, function(records) {
+      tmp++
+      if ( records.length > 0 ) {
+        //console.log('EachMachine record : ' +  records.length)
+      	totalRecords = totalRecords.concat(records)
+      	//console.log('totleRecords : ' + totalRecords.length)
+      }
+
+      if ( tmp == machineIDs.length ) {
+    	//console.log( 'callback ')
+	callback( totalRecords )
+      }
+    })
+  }
+}
+
+
+function getMachineMoldProductRecords (db, machineIDs, from, to, callback) {
+  var totalRecords = []
+  var i
+  //var records = []
+//console.log('getMachineMoldProductrecords')
+//console.log('machineIDs.length : ' +  machineIDs.length)
+//console.log('machineIDs : ' +  machineIDs)
+
+  var tmp = 0
+
+  for ( i = 0 ; i < machineIDs.length ; i++ ) {
+
+    getEachMachineProductRecords (db, machineIDs[i], from, to, function(records) {
+      tmp++
+      //console.log( 'tmp : ' + tmp )
+      //console.log('EachMachine record : ' +  records.length)
+      totalRecords = totalRecords.concat(records)
+      //console.log('totleRecords : ' + totalRecords.length)
+
+      if ( tmp == machineIDs.length ) {
+    	//console.log( 'callback ')
+	callback( totalRecords )
+      }
+    })
+  }
+}
+
+
+function getMachineMoldProductAnalysisRecords (db, machineIDs, moldNum, from, to, callback) {
+//function getMachineMoldProductRecords (db, machineIDs, from, to, callback) {
+  var totalRecords = []
+  var i
+  //var records = []
+//console.log('getMachineMoldProductrecords')
+//console.log('machineIDs.length : ' +  machineIDs.length)
+//console.log('machineIDs : ' +  machineIDs)
+
+  var tmp = 0
+
+  for ( i = 0 ; i < machineIDs.length ; i++ ) {
+
+    getEachMachineMoldProductRecords (db, machineIDs[i], moldNum, from, to, function(records) {
+      tmp++
+      if ( records.length > 0 ) {
+        console.log('EachMachine record : ' +  records.length)
+      	totalRecords = totalRecords.concat(records)
+      	console.log('totleRecords : ' + totalRecords.length)
+      }
+
+      if ( tmp == machineIDs.length ) {
+    	//console.log( 'callback ')
+	callback( totalRecords )
+      }
+    })
+  }
+}
+
+
+function getMachineProductAnalysisRecords (db, machineIDs, product, from, to, callback) {
+  var totalRecords = []
+  var i
+//console.log('getMachineProductAnalysisRecords')
+//console.log('machineIDs.length : ' +  machineIDs.length)
+//console.log('machineIDs : ' +  machineIDs)
+
+  var tmp = 0
+
+  for ( i = 0 ; i < machineIDs.length ; i++ ) {
+
+    getProductOrderEachMachineRecords (db, machineIDs[i], product, from, to, function(records) {
+      tmp++
+      //console.log( 'tmp : ' + tmp )
+      if ( records.length > 0 ) {
+        //console.log('EachMachine record : ' +  records.length)
+      	totalRecords = totalRecords.concat(records)
+      	//console.log('totleRecords : ' + totalRecords.length)
+      }
+
+      if ( tmp == machineIDs.length ) {
+    	//console.log( 'callback ')
+	callback( totalRecords )
+      }
+    })
+  }
+}
+
+
+function getOrderFromEachMachineRecords (clientData, machineID, orderArr) {
+  var records = []
+  clientData.db(config.dbName).collection(machineID).find({$or: orderArr}).toArray(function (err1, docs) {
+    if (err1) {
+      reject(err)
+      console.log('2')
+      // socket.emit('getTotalTargetCountFail', data)
+    } else {
+      orderArr.forEach(elm => {
+        var subDocs = docs.filter(doc => {
+          if (((doc['machineStatusType'] === '半自動') || (doc['machineStatusType']  === '全自動')) && (elm.orderNumber === doc.orderNumber)) {
+            return doc
+          }
+        })
+        console.log('subDocs')
+        console.log(machineID)
+        console.log(subDocs)
+        var total = subDocs.reduce(function (previousValue, currentValue, index, array) {
+          return previousValue + currentValue.moldCount  
+        }, 0)
+        var obj = {
+          totalTargetCount: total * subDocs[0].cavities
+        }
+        records.push(obj)
+      })
+      resolve(records)
+    }
+  })
+}
+
+app.get('/api/getPeriodMachineRecords_BK/:departmentID/:from/:to', function (req, res) {
+  var departmentIDT = req.params.departmentID
+  console.log(departmentIDT)
+  var departmentID = '1A01'
+  var from = new Date(req.params.from)
+  var to = new Date(req.params.to)
+  console.log([from, to])
+
+  var machines = {}
+  // MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    db = client.db(config.dbName)
+    var col = db.collection(config.machineListColName)
+    col.find({department: departmentID}).toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var promises = []
+        docs.forEach(doc => {
+          var machineID = doc.machineID
+          promises.push(getEachMachineRecords(db, machineID, from, to).then(results => {
+            machines[machineID] = results
+          }))
+        })
+
+        Promise.all(promises).then(() => {
+          res.send({
+            type: true,
+            data: machines
+          })
+          // db.close()
+        }).catch(err => {
+          console.log(err)
+          res.send({
+            type: false
+          })
+          // db.close()
+        })
+      }
+    })
+  }) /* .catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  }) */
+})
+// --------------------------------------------------------Increase-----------------------------
+app.get('/api/getProductArr', function (req, res) {
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    var col = client.db(config.dbName).collection('productNumberList')
+    col.find().toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        res.send({
+          type: true,
+          data: docs
+        })
+      }
+    })
+  })
+})
+app.get('/api/getMoldArr', function (req, res) {
+  MongoClient.connect(config.dbUrl, function (err0, client) {
+    var col = client.db(config.prodDBName).collection('模具明細')
+    col.find().toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var moldNumArr = []
+        moldNumArr.length = 0
+        console.log(docs)
+        docs.forEach(doc => {
+          moldNumArr.splice(moldNumArr.length, 0, {_id: doc['模具編號']})
+        })
+        res.send({
+          type: true,
+          data: moldNumArr
+        })
+      }
+    })
+  })
+})
+// --------------------------------------------------------Test-----------------------------
+app.get('/api/getAbnormalTable/:machineIDArr/:from/:to/:Ind', function (req, res) {
+  var machineIDs = req.params.machineIDArr.split(",")
+  var Ind = req.params.Ind
+  console.log('getAbnormalTable');
+//console.log('machineIDs : ' + machineIDs)
+
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+//console.log([from.toString(), to.toString()])
+
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName);
+
+      getAbnormalTableMachineRecords (db, machineIDs, from, to, Ind, function(abnormalTableReport) {
+	  //console.log('abnormalTableReport : ' +  JSON.stringify(abnormalTableReport))
+	  res.send({
+	      type:true,
+	      data: abnormalTableReport
+	  })
+      })
+    }
+  })
+})
+app.get('/api/getWorkDays/:machineID/:from/:to', function (req, res) {
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).subtract(parseInt(subStr[0]), 'hours').subtract(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(0,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var machineArrary = req.params.machineID.split(',')
+  var startDate =  moment(from).format('YYYY/M/DD')
+  var endDate =  moment(to).format('YYYY/M/DD')
+  var first = false
+  var second = false
+  var third = false
+  var machines = {}
+  MongoClient.connect(config.dbUrl, function(err, client){
+    if (err) {
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var promises = []
+      var db = client.db('calendar' + moment(startDate).year())
+      machineArrary.forEach(machineID => {
+        promises.push(getEachWorkDays(client, machineID, from, to).then(results => {
+          machines[machineID] = results
+        }))
+      })
+      var resData = {}
+      Promise.all(promises).then(() => {
+        res.send({
+          type: true,
+          data: machines // resData
+        })
+      })
+    }
+  })
+})
+function getEachWorkDays (client, machineID, startDate, endDate) {
+  return new Promise((resolve, reject) => {
+    client.db('calendar' + moment(startDate).year()).collection(machineID).find({$and: [{date: {$gte: startDate}}, {date: {$lte: endDate}}]}).toArray(function (err2, docs) {
+      if(err2) {
+        reject(err)
+      } else {
+        var days = docs.filter(doc => {
+          return (doc['first'] === true) || (doc['second'] === true) || (doc['third'] === true)
+        })
+        resolve(days.length)
+      }
+    })
+  })
+}
+/* app.get('/api/getPeriodMachineRecords/:departmentID/:from/:to', function (req, res) {
+  var departmentIDT = req.params.departmentID
+  console.log(departmentIDT)
+  var departmentID = departmentIDT
+  var from = new Date(req.params.from)
+  var to = new Date(req.params.to)
+  console.log([from, to]) */
+app.get('/api/getPeriodMachineRecords/:departmentID/:from/:to', function (req, res) {
+  var zone = req.params.zone
+  // var reportDate = req.params.reportDate
+  // var from = moment(moment(reportDate).format('YYYY-MM-DD')).toDate()
+  // var to = moment(moment(reportDate).format('YYYY-MM-DD 23:59:59')).toDate()
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+    var departmentID = req.params.departmentID
+    //var from = new Date(req.params.from)
+    //var to = new Date(req.params.to)
+  console.log('getPeriodMachineRecords')
+  console.log('departmentID : ' + departmentID)
+    console.log([from, to])
+  
+    var machines = {}
+  
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+  console.log('failed to connect')
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var db = client.db(config.dbName)
+        var col = db.collection(config.machineListColName)
+        col.find({department: departmentID}).toArray(function (err, docs) {
+          if (err) {
+  console.log('failed to find ' +  departmentID)
+            res.send({
+              type: false,
+              data: 'Error occured: ' + err
+            })
+          } else {
+            var promises = []
+            docs.forEach(doc => {
+              var machineID = doc.machineID
+  console.log('machineID : ' + machineID)
+              promises.push(getEachMachineRecords(db, machineID, from, to).then(results => {
+                machines[machineID] = results
+              }))
+            })
+   console.log(machines)
+            // var resData = []
+            var ackData = {}
+            Promise.all(promises).then(() => {
+              var objKeys = Object.keys(machines)
+              objKeys.forEach(keyID => {
+                var resData = []
+                var auto = machines[keyID].filter(rowData => {
+                  if ('orderNumber' in rowData) {
+                    var orderNumber = rowData.orderNumber || ''
+                    if (orderNumber.length > 3) {
+                      if ((rowData['machineStatusType'] === '半自動') || (rowData['machineStatusType']  === '全自動')) {
+                        return rowData
+                      }
+                    }
+                  }
+                })
+                auto.sort(function(a,b) {
+                  return a.trigTime > b.trigTime ? 1 : -1;
+                })
+                var almRecords = machines[keyID].filter(rowData => {
+                  if ('orderNumber' in rowData) {
+                    var orderNumber = rowData.orderNumber || ''
+                    if (orderNumber.length > 3) {
+                      if ((rowData['machineStatusType'] === '警報')  && (rowData['machineStatus'] !== '通信失敗')) {
+                        return rowData
+                      }
+                    }
+                  }
+                })
+                almRecords.sort(function(a,b) {
+                  return a.trigTime > b.trigTime ? 1 : -1;
+                })
+                var propIdx = 0
+                var propObj = {}
+                auto.forEach(doc1 => {
+                  if(!propObj.hasOwnProperty(doc1.orderNumber)) {
+                    propObj[doc1.orderNumber] = propIdx++
+                  }
+                })
+                Object.keys(propObj).map(function(objectKey, indexMap) {
+                  var value = propObj[objectKey]
+                  var orderNumberDocs = auto.filter(function(val) {
+                    if(val.orderNumber === objectKey) {
+                      return val
+                    }
+                  })
+                  var total = ((orderNumberDocs.filter(function(val, index, arr) {
+                    var min = val.min || 0
+                      return min > 0
+                  })).sort(function(a,b) {
+                    return a.min > b.min ? 1 : -1
+                  }))
+                  var min = 0
+                  if (total.length !== 0) {
+                    min = total[0].min
+                  }
+                  var warehousing = (orderNumberDocs.reduce(function (previousValue, currentValue, index, array) {
+                    return previousValue + currentValue.warehousing  
+                  }, 0))
+                  var badNum = (orderNumberDocs.reduce(function (previousValue, currentValue, index, array) {
+                    return previousValue + currentValue.badNum  
+                  }, 0))
+                  var  moldCount = (orderNumberDocs.reduce(function (previousValue, currentValue, index, array) {
+                    return previousValue + currentValue.moldCount  
+                  }, 0))
+                  var badRate = 0 
+                  if (moldCount * orderNumberDocs[0].cavities !== 0) {
+                    badRate = badNum / (moldCount * orderNumberDocs[0].cavities)
+                  }
+                  var duration = (orderNumberDocs.reduce(function (previousValue, currentValue, index, array) {
+                    console.log('duration')
+                    console.log(currentValue.lastTrigTime - currentValue.trigTime)
+                    return previousValue + (currentValue.lastTrigTime - currentValue.trigTime)
+                  }, 0))
+                  var average = duration / moldCount
+                  var almRecord = almRecords.filter(function(val) {
+                    if(val.product === objectKey) {
+                      return val
+                    }
+                  })
+                  if (keyID === '1A01') {
+                    console.log(almRecord)
+                  }
+                  resData.splice(resData.length, 0, {
+                    machineID: keyID,
+                    totalAlm: almRecord.length,
+                    orderNumber: orderNumberDocs[0].orderNumber,
+                    product: orderNumberDocs[0].product,
+                    cavities: orderNumberDocs[0].cavities,
+                    startTime: orderNumberDocs[0].trigTime, // '2016/6/1 13:02:20',
+                    endTime: orderNumberDocs[orderNumberDocs.length - 1].lastTrigTime, // '2016/6/1 16:28:20',
+                    duration: duration, // '3:25:53', // 排班工作時間累計
+                    moldCount: moldCount,
+                    targetCount: moldCount * orderNumberDocs[0].cavities,
+                    warehousing: warehousing,
+                    badNum: badNum,
+                    badRate: badRate,
+                    standard: orderNumberDocs[0].standard,
+                    min: min,
+                    average: average,
+                    performance: orderNumberDocs[0].standard / average,
+                    deadline: orderNumberDocs[orderNumberDocs.length - 1].deadline,
+                    lastID: orderNumberDocs[orderNumberDocs.length - 1]._id
+                  })
+                })
+                ackData[keyID] = resData
+              })
+              // console.log(ackData)
+              res.send({
+                type: true,
+                data: ackData // resData
+              })
+              //db.close()
+            }).catch(err => {
+              console.log(err)
+              res.send({
+                type: false
+              })
+              //db.close()
+            })
+          }
+        })
+      }
+    })
+  })
+  var machines = [{
+    machineID: '1A01',
+    totalAlm: 0,
+    product: '4825-2802',
+    cavities: 1,
+    sortStartTime: '',
+    startTime: '2016/6/1 13:02:20',
+    endTime: '2016/6/1 16:28:20',
+    duration: '3:25:53', // 排班工作時間累計
+    moldCount: 420,
+    targetCount: 420,
+    warehousing: 408,
+    badNum: 12,
+    badRate: 2.9,
+    standard: 28,
+    min: 29.2,
+    average: 29.4,
+    performance: 95.2,
+    deadline: '6/5'
+  }, {
+    machineID: '1A01',
+    totalAlm: 0,
+    product: '4825-2802',
+    cavities: 1,
+    sortStartTime: '',
+    startTime: '2016/6/1 13:02:20',
+    endTime: '2016/6/1 16:28:20',
+    duration: '32:20:07', // 排班工作時間累計
+    moldCount: 4227,
+    targetCount: 4227,
+    warehousing: 4188,
+    badNum: 39,
+    badRate: 0.9,
+    standard: 28,
+    min: 27.3,
+    average: 27.5,
+    performance: 101.7,
+    deadline: '5/28'
+  }]
+  /* res.send({
+    type: true,
+    data: machines
+  }) */
+
+/* app.get('/api/getProductProcessAnalysis/:product/:departmentID/:from/:to', function (req, res) {
+  var departmentID = req.params.departmentID
+  var product = req.params.product
+  console.log(departmentID)
+  console.log(product)
+  var from = new Date(req.params.from)
+  var to = new Date(req.params.to)
+  console.log([from, to])
+  var machines = [{
+    moldNum: '4826-2400A',
+    machineID: '1A01',
+    totalAlm: 1,
+    cavities: 1,
+    startTime: '2018/01/01 10:00:00',
+    endTime: '2018/01/01 15:00:00',
+    duration: '32:20:07',
+    moldCount: 4227,
+    targetCount: 4227,
+    warehousing: 4227,
+    badNum: 0,
+    badRate: 0,
+    standard: 28,
+    min: 27.1,
+    average: 27.5,
+    performance: 101.7
+  }, {
+    moldNum: '4826-2400A',
+    machineID: '1A01',
+    totalAlm: 0,
+    cavities: 1,
+    startTime: '2018/01/18 20:00:00',
+    endTime: '2018/01/20 15:00:00',
+    duration: '32:20:07',
+    moldCount: 4051,
+    targetCount: 4051,
+    warehousing: 4051,
+    badNum: 0,
+    badRate: 0,
+    standard: 28,
+    min: 27.5,
+    average: 28.4,
+    performance: 98.5
+  }]
+  res.send({
+    type: true,
+    data: machines
+  })
+}) */
+// ----------成品料號製程分析-----------
+app.get('/api/getProductProcessAnalysis/:machineIDs/:product/:from/:to', function (req, res) {
+  var machineIDs = req.params.machineIDs.split(",")
+  var product = req.params.product
+//console.log('getProductProcessAnalysis');
+//console.log('machineIDs : ' + machineIDs.toString())
+//console.log('product : ' + product)
+
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+//console.log([from.toString(), to.toString()])
+
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+console.log('failed to connect')
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName);
+
+      var totalProducts = [] 
+      var orderRecords = []
+      var orderReports = []
+
+      getMachineProductAnalysisRecords (db, machineIDs, product, from, to, function(totalProducts) {
+
+        while ( totalProducts.length > 0 ) {
+	    retrieveEachOrderRecords (totalProducts, function(orderRecords) {
+                var orderData = []
+	  
+	        orderData = buildProductAnalysisData ( orderRecords )
+ 
+	        orderReports.push( orderData )
+     	        if ( totalProducts.length == 0 ) {
+//	          console.log( 'in productReport[0] : ' + JSON.stringify(productReport[0]) )
+	          return( orderReports )
+	        }
+	    })	    
+	       
+
+	    //console.log( 'Reports.length : ' + Reports.length )
+//console.log( 'out orderReports[0] : ' + JSON.stringify(orderReports[0]) )
+
+     	    if ( totalProducts.length == 0 ) {
+	      //console.log( 'send productReport' )
+	      res.send({
+	        type:true,
+	        data: orderReports
+	      })
+	    }
+	} // while 
+
+      })
+    }
+  })
+
+})
+function getMachineProductAnalysisRecords (db, machineIDs, product, from, to, callback) {
+  var totalRecords = []
+  var i
+//console.log('getMachineProductAnalysisRecords')
+//console.log('machineIDs.length : ' +  machineIDs.length)
+//console.log('machineIDs : ' +  machineIDs)
+
+  var tmp = 0
+
+  for ( i = 0 ; i < machineIDs.length ; i++ ) {
+
+    getProductOrderEachMachineRecords (db, machineIDs[i], product, from, to, function(records) {
+      tmp++
+      //console.log( 'tmp : ' + tmp )
+      if ( records.length > 0 ) {
+        //console.log('EachMachine record : ' +  records.length)
+      	totalRecords = totalRecords.concat(records)
+      	//console.log('totleRecords : ' + totalRecords.length)
+      }
+
+      if ( tmp == machineIDs.length ) {
+    	//console.log( 'callback ')
+	callback( totalRecords )
+      }
+    })
+  }
+}
+function getProductOrderEachMachineRecords (db, machineID, product, from, to, callback) {
+    var col = db.collection(machineID)
+    var records = []
+
+//console.log('getEachMachineMoldProductrecords')
+//    console.log(machineID)
+    col.find({product: product, "orderNumber":{$exists:true,$nin:[null,""]}, trigTime: {$gte: from, $lt: to}, lastTrigTime: {$gte: from}}).toArray(function (err, docs) {
+      if (err) {
+	console.log( err )
+        //reject(err)
+      } else {
+        //console.log('docs.length : ' + docs.length)
+	callback(docs)
+      }
+    })
+}
+function retrieveEachOrderRecords(totalProducts, callback) {
+  //  console.log('retrieveEachOrderRecords')
+    var orderNumber = totalProducts[0].orderNumber
+    var totalLength = totalProducts.length
+    var i
+    var j = 0
+    var orderRecords = []
+    var removeProductsIndexes = [] 
+    
+  //console.log(totalProducts[0].product)
+  //console.log("totalLength : " + totalLength)
+    orderRecords.push( totalProducts[0] )
+    removeProductsIndexes.push( 0 );
+    for ( i = 1  ; i < totalLength ; i++ ) {
+      if ( totalProducts[i].orderNumber === orderNumber ) {
+         orderRecords.push( totalProducts[i] )
+         removeProductsIndexes.push( i );
+      }
+    }
+  
+    // remove this product from totalProducts from the back of array
+    removeProductsIndexes.reverse();
+    for ( i = 0 ; i < orderRecords.length ; i++ ) {
+      totalProducts.splice( removeProductsIndexes[i], 1 )
+    }
+    
+    callback( orderRecords )
+  }
+  function buildProductAnalysisData( orderRecords ) {
+    var orderNumber = orderRecords[0].orderNumber
+    var moldNum = orderRecords[0].moldNum
+    var machineID = orderRecords[0].machineID
+    var totalAlm = 0
+    var cavities
+    var startTime = orderRecords[0].trigTime
+    var endTime = orderRecords[0].lastTrigTime
+    var duration = 0
+    var moldCount = 0
+    var targetCount = 0
+    var warehousing = 0
+    var badNum = 0
+    var badRate = 0
+    var standard
+    var minArray = []
+    var min = 0
+    var average = 0
+  
+    if ( orderRecords[0].cavities === null ) {
+      cavities = 0
+    } else {
+      cavities = orderRecords[0].cavities
+    }
+  
+    if ( orderRecords[0].standard === null ) {
+      standard = 0
+    } else {
+      standard = orderRecords[0].standard
+    }
+  
+    orderRecords.forEach(doc => {
+      if ( doc['machineStatusType'] === '警報' ) {
+        totalAlm++;
+      }
+  
+      if ( doc['note'] === '更換模具、模仁' ) {
+        changeMold++
+      }
+  
+      if ( (doc['machineStatusType'] === '全自動') || (doc['machineStatusType'] === '半自動' ) ) {
+        duration += doc['lastTrigTime'] - doc['trigTime']
+        moldCount += doc['moldCount']
+      }
+  
+      warehousing += doc['warehousing']  
+  
+      if ( doc['min'] !== undefined && doc['min'] !== null && doc['min'] != 0 ) {
+        minArray.push( doc['min'] )
+      }
+    })
+  
+    if ( minArray.length > 0 ) {
+      min = Math.min( ...minArray )
+      //console.log('min : ' + min)
+    }  
+    else {
+      min = 0
+    }
+  
+    targetCount = moldCount * cavities
+    badNum = targetCount - warehousing
+  
+    if ( targetCount == 0 ) {
+      badRate = 0
+    } else {
+      badRate = badNum / targetCount
+    }
+  
+    average = duration / moldCount
+  
+    var orderData = {
+      orderNumber : orderNumber,
+      moldNum : moldNum,
+      machineID: machineID,
+      totalAlm: totalAlm,
+      cavities: cavities,
+      startTime: startTime,
+      endTime: endTime,
+      duration: duration, // new Date(duration * 1000).toISOString().substr(11, 8),
+      moldCount: moldCount,
+      targetCount: targetCount,
+      warehousing: warehousing,
+      badNum: badNum,
+      badRate: badRate,
+      standard: standard,
+      min: min,
+      average: average,
+      performance: standard / average 
+    }
+  //console.log( 'in :  productData : ' + JSON.stringify(productData) );
+    return( orderData )
+  }
+// ----------成品料號製程分析-----------
+/* app.get('/api/getMoldProcessAnalysis/:moldNum/:departmentID/:from/:to', function (req, res) {
+  var departmentID = req.params.departmentID
+  var moldNum = req.params.moldNum
+  console.log(departmentID)
+  console.log(moldNum)
+  var from = new Date(req.params.from)
+  var to = new Date(req.params.to)
+  console.log([from, to])
+  var machines = [{
+    machineID: '1A01',
+    product: '4825-2802',
+    totalAlm: 1,
+    cavities: 1,
+    startTime: '2018/01/01 10:00:00',
+    endTime: '2018/01/01 15:00:00',
+    duration: '32:20:07',
+    moldCount: 4227,
+    targetCount: 4227,
+    warehousing: 4227,
+    badNum: 0,
+    badRate: 0,
+    standard: 28,
+    min: 27.1,
+    average: 27.5,
+    performance: 101.7
+  }, {
+    machineID: '1A01',
+    product: '4825-5632',
+    totalAlm: 0,
+    cavities: 1,
+    startTime: '2018/01/18 20:00:00',
+    endTime: '2018/01/20 15:00:00',
+    duration: '32:20:07',
+    moldCount: 4051,
+    targetCount: 4051,
+    warehousing: 4051,
+    badNum: 0,
+    badRate: 0,
+    standard: 28,
+    min: 27.5,
+    average: 28.4,
+    performance: 98.5
+  }]
+  res.send({
+    type: true,
+    data: machines
+  })
+}) */
+var MoldProcessAnalysis = require('./MoldProcessAnalysis.js')
+app.get('/api/getMoldProcessAnalysis/:machineIDs/:moldNum/:from/:to', function (req, res) {
+  var machineIDs = req.params.machineIDs.split(",")
+  var moldNum = req.params.moldNum
+console.log('getMoldProcessAnalysis');
+console.log('machineIDs : ' + machineIDs.toString())
+console.log('moldNum : ' + moldNum)
+  var DBmoldNum = "MM".concat(moldNum)
+console.log('moldNum : ' + DBmoldNum)
+
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+console.log([from.toString(), to.toString()])
+  MoldProcessAnalysis.getMoldProcessAnalysis(machineIDs, DBmoldNum, from, to, res)
+})
+var MoldPeriodMachineRecords = require('./MoldPeriodReportProps.js')
+app.get('/api/getMoldPeriodMachineRecords/:machineIDs/:from/:to', function (req, res) {
+  var machineIDs = req.params.machineIDs.split(",")
+console.log('getMoldPeriodMachineRecords');
+//console.log('machineIDs : ' + machineIDs)
+
+  var subStr = firstDailyPoint.split(':')
+//console.log(moment(req.params.from).format('YYYY-MM-DD HH:mm:ss'))
+//console.log(moment(req.params.to).format('YYYY-MM-DD HH:mm:ss'))
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  MoldPeriodMachineRecords.getMoldPeriodMachineRecords(machineIDs, from, to, res)
+//console.log([from.toString(), to.toString()])
+})
+/* app.get('/api/getMoldPeriodMachineRecords/:machineID/:from/:to', function (req, res) {
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var machineID = req.params.machineID
+  var machineArrary = machineID.split(',')
+  console.log(machineArrary)
+  var departmentID = '1A01'
+  console.log([from, to])
+  var machines = [{
+    moldNum: '480C-0000',
+    moldName: 'PL80C 鏡片',
+    totalAlm: 2,
+    changeMold: 0,
+    cavities: 2,
+    durationStr: '80:35:55', // 排班工作時間累計
+    moldCount: 10150,
+    targetCount: 10150,
+    warehousing: 10150,
+    badNum: 0,
+    badRate: 0.00,
+    standard: 28,
+    min: 28.23,
+    average: 28.61,
+    performance: 97.90001
+  }, {
+    moldNum: '4814-0001',
+    moldName: 'FS-814 面板前架',
+    totalAlm: 1,
+    changeMold: 0,
+    cavities: 2,
+    durationStr: '20:50:03', // 排班工作時間累計
+    moldCount: 8237,
+    targetCount: 8237,
+    warehousing: 8237,
+    badNum: 0,
+    badRate: 0.00,
+    standard: 29,
+    min: 29.112222,
+    average: 30.333333333,
+    performance: 99.90001
+  }]
+  res.send({
+    type: true,
+    data: machines
+  })
+}) */
+/* app.get('/api/getProductPeriodMachineRecords/:departmentID/:from/:to', function (req, res) {
+  var departmentIDT = req.params.departmentID
+  console.log(departmentIDT)
+  var departmentID = '1A01'
+  var from = new Date(req.params.from)
+  var to = new Date(req.params.to)
+  console.log([from, to])
+  var machines = [{
+    machineID: '1A01',
+    totalAlm: 0,
+    changeMold: 0,
+    product: '4825-2802',
+    prodName: '',
+    cavities: 1,
+    durationStr: '', // 排班工作時間累計
+    moldCount: 420,
+    targetCount: 420,
+    warehousing: 420,
+    badNum: 0,
+    badRate: 0,
+    standard: 28,
+    min: 29.1,
+    average: 29.4,
+    performance: 95.2
+  }, {
+    machineID: '1A02',
+    totalAlm: 0,
+    changeMold: 0,
+    product: '4825-5632',
+    prodName: '',
+    cavities: 1,
+    durationStr: '32:20:07', // 排班工作時間累計
+    moldCount: 4227,
+    targetCount: 4227,
+    warehousing: 4227,
+    badNum: 0,
+    badRate: 0,
+    standard: 28,
+    min: 27,
+    average: 27.5,
+    performance: 101.7
+  }]
+  res.send({
+    type: true,
+    data: machines
+  })
+}) */
+function getEachMachineProductRecords (db, machineID, from, to, callback) {
+  var col = db.collection(machineID)
+  var records = []
+
+  //console.log(machineID)
+  col.find({trigTime: {$gte: from, $lt: to}, lastTrigTime: {$gte: from}}).toArray(function (err, docs) {
+    if (err) {
+console.log( 'err' )
+      reject(err)
+    } else {
+var j
+
+for ( j = 0  ; j < docs.length ; j++ ) {
+        if ((docs[j].orderNumber !== undefined) && (docs[j].orderNumber !== "") && (docs[j].orderNumber !== null)) {
+    records.push( docs[j] )
+        }
+      }
+      //console.log('records.length : ' + records.length)
+    }
+    //console.log('records.length : ' + records.length)
+    callback(records)
+  })
+} 
+function getMachineProductRecords (db, machineIDs, from, to, callback) {
+  var totalRecords = []
+  var i
+  //var records = []
+//console.log('machineIDs.length : ' +  machineIDs.length)
+
+  var tmp = 0
+
+  for ( i = 0 ; i < machineIDs.length ; i++ ) {
+    //console.log( 'i : ' + i )
+
+    getEachMachineProductRecords (db, machineIDs[i], from, to, function(records) {
+      tmp++
+      //console.log( 'tmp : ' + tmp )
+      //console.log('EachMachine record : ' +  records.length)
+      totalRecords = totalRecords.concat(records)
+      //console.log('totleRecords : ' + totalRecords.length)
+
+      if ( tmp == machineIDs.length ) {
+    	//console.log( 'callback ')
+	callback( totalRecords )
+      }
+    })
+  }
+}
+function retrieveEachProductRecords(totalProducts, callback) {
+  //  console.log('retrieveEachProductRecords')
+    var productID = totalProducts[0].product
+    var totalLength = totalProducts.length
+    var i
+    var j = 0
+    var productRecords = []
+    var removeProductsIndexes = [] 
+    
+  //console.log(totalProducts[0].product)
+  //console.log("totalLength : " + totalLength)
+    productRecords.push( totalProducts[0] )
+    for ( i = 1  ; i < totalLength ; i++ ) {
+      if ( totalProducts[i] !== undefined && totalProducts[i].product === productID ) {
+         productRecords.push( totalProducts[i] )
+         removeProductsIndexes[j++] = i;
+      }
+    }
+  
+    // remove this product from totalProducts from the back of array
+    removeProductsIndexes.reverse();
+    for ( i = 0 ; i < productRecords.length ; i++ ) {
+      totalProducts.splice( removeProductsIndexes[i], 1 )
+    }
+    
+    callback( productRecords )
+  }
+  
+  
+  function buildProductData( productRecords ) {
+  
+    var product = productRecords[0].product
+    var prodName = productRecords[0].prodName
+    var cavities = productRecords[0].cavities
+    var totalAlm = 0
+    var changeMold = 0
+    var duration = 0
+    var moldCount = 0
+    var warehousing = 0
+    var standard = productRecords[0].standard
+    var targetCount = 0
+    var badNum = 0
+    var minArray = []
+    var min = 0
+    var average = 0
+  
+    productRecords.forEach(doc => {
+      if ( doc['machineStatusType'] === '警報' ) {
+        totalAlm++;
+      }
+  
+      if ( doc['note'] === '更換模具、模仁' ) {
+        changeMold++
+      }
+  
+      if ( (doc['machineStatusType'] === '全自動') || (doc['machineStatusType'] === '半自動' ) ) {
+        duration += doc['lastTrigTime'] - doc['trigTime']
+        moldCount += doc['moldCount']
+      }
+  
+      warehousing += doc['warehousing']  
+  
+      if ( (doc['min'] || 0) != 0 ) {
+        minArray.push( doc['min'] )
+      }
+      if ( minArray.length > 0 ) {
+        min = Math.min( ...minArray )
+      }  
+    })
+  
+    targetCount = moldCount * cavities
+    badNum = targetCount - warehousing
+    average = duration / moldCount
+  
+    var productData = {
+      product: product,
+      prodName: prodName,
+      totalAlm: totalAlm,
+      changeMold: changeMold,
+      cavities: cavities,
+      durationStr: duration, // 排班工作時間累計
+      moldCount: moldCount,
+      targetCount: targetCount,
+      warehousing: warehousing,
+      badNum: badNum,
+      badRate: badNum / targetCount,
+      standard: standard,
+      min: min,
+      average: average,
+      performance: standard / average
+    }
+  //console.log( 'in :  productData : ' + JSON.stringify(productData) );
+    return( productData )
+  }
+  app.get('/api/getProductPeriodMachineRecords/:machineID/:from/:to', function (req, res) {
+    var machineIDs = req.params.machineID.split(",")
+  console.log('getProductPeriodMachineRecords');
+  console.log('machineIDs : ' + machineIDs)
+  
+    var subStr = firstDailyPoint.split(':')
+  console.log(moment(req.params.from).format('YYYY-MM-DD HH:mm:ss'))
+  console.log(moment(req.params.to).format('YYYY-MM-DD HH:mm:ss'))
+    var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+    var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+    
+  //console.log([from.toString(), to.toString()])
+  
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+  console.log('failed to connect')
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var db = client.db(config.dbName);
+  
+        var totalProducts = [] 
+        var productRecords = []
+        var productReport = []
+  
+        getMachineProductRecords(db, machineIDs, from, to, function(totalProducts) {
+  
+          while ( totalProducts.length > 0 ) {
+      retrieveEachProductRecords(totalProducts, function(productRecords) {
+              var productData = []
+      
+        productData = buildProductData( productRecords )
+   
+        productReport.push( productData )
+             if ( totalProducts.length == 0 ) {
+  //	      console.log( 'in productReport[0] : ' + JSON.stringify(productReport[0]) )
+          return( productReport )
+        }
+        
+      }) 
+  //console.log( 'out productReport[0] : ' + JSON.stringify(productReport[0]) )
+  
+           if ( totalProducts.length == 0 ) {
+        console.log( 'send productReport' )
+        res.send({
+          type:true,
+          data: productReport
+        })
+      }
+  
+    } // while 
+        })
+      }
+    })      
+  })
+  app.get('/api/getUtilizationMachineRecords/:machineIDs/:from/:to', function (req, res) {
+    var machineIDs = req.params.machineIDs.split(",")
+  //console.log('getUtilizationMachineRecords');
+  //console.log('machineIDs : ' + machineIDs)
+  
+    var subStr = firstDailyPoint.split(':')
+    var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+    var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  //console.log([from.toString(), to.toString()])
+    
+    
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+  console.log('failed to connect')
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var db = client.db(config.dbName);
+  
+        var totalProducts = [] 
+        var machineRecords = []
+        var utilizationReport = []
+  
+        getMachineProductRecords (db, machineIDs, from, to, function(totalProducts) {
+  
+          while ( totalProducts.length > 0 ) {
+        //console.log( 'totalProducts.length : ' + totalProducts.length)
+        retrieveEachMachineRecords (totalProducts, function(machineRecords) {
+          
+                var utilizationData = []
+      
+      //console.log( 'totalProducts.length : ' + totalProducts.length)
+      //console.log( 'machineRecords.length : ' + machineRecords.length)
+          utilizationData = buildUtilizationData( machineRecords )
+   
+          utilizationReport.push( utilizationData )
+      //console.log('utilizatioReport.length : ' + utilizationReport.length)
+               if ( totalProducts.length == 0 ) {
+              //var machineID = machineRecords[0].machineID
+              //console.log('machineID : ' + machineID)
+              getMachineInfoRecords(db, machineIDs, function(machineRecords) {
+            if ( machineRecords == undefined ) {
+                  console.log( 'machineInfo is undefined' )
+                res.send({
+                    type:true,
+                    data: utilizationReport
+                })
+            } else {
+                        //console.log( 'In  machineRecords.length : ' + machineRecords.length )
+                        //console.log( 'In  machineRecords[0] : ' + JSON.stringify(machineRecords[0]) )
+                        //console.log( 'In  utilizationReport : ' + JSON.stringify(utilizationReport) )
+                        //console.log( 'In  machineRecords : ' + JSON.stringify(machineRecords) )
+            var i
+            for ( i = 0 ; i < utilizationReport.length ; i++ ) {
+          var machineID = utilizationReport[i].machineID
+          var j
+          //console.log('machineID : ' + machineID)
+          for ( j = 0 ; j < machineRecords.length ; j++ ) {
+              if ( machineID == machineRecords[j].machineID ) {
+                utilizationReport[i].propertyNum = machineRecords[j].propertyNum
+                utilizationReport[i].brand = machineRecords[j].brand
+            break;
+              }
+          }
+            }
+  
+                res.send({
+                    type:true,
+                    data: utilizationReport
+                })
+        }
+          })
+      }	    
+        })
+    } // while	
+        })
+      }
+    })      
+  })
+  app.get('/api/getAbnormalListData/:machineIDs/:from/:to/:ind', function (req, res) {
+    var machineIDs = req.params.machineIDs.split(",")
+    var ind = req.params.ind
+    console.log('getAbnormalListData');
+  //console.log('machineIDs : ' + machineIDs)
+  
+    var subStr = firstDailyPoint.split(':')
+    var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+    var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  //console.log([from.toString(), to.toString()])
+    
+    
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+  console.log('failed to connect')
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var db = client.db(config.dbName);
+  
+        getAbnormalMachineRecords (db, machineIDs, from, to, ind, function(abnormalListReport) {
+      console.log('abnormalListReport : ' +  JSON.stringify(abnormalListReport))
+      res.send({
+          type:true,
+          data: abnormalListReport
+      })
+        })
+      }
+    })      
+  })
+  
+/*
+app.post('/api/setProductWarehousing/:departmentID', function (req, res) {
+  // console.log(JSON.stringify(req.params.machineID, null, 2))
+  console.log(JSON.stringify(req.body, null, 2))
+  var departmentID = req.params.departmentID
+  var id = Object.keys(req.body.data)[0]
+  console.log(departmentID)
+
+  res.send({
+    type: false,
+    'data': [
+    ]
+  })
+
+  MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+    var col = db.collection(config.machineListColName)
+    col.find({department: departmentID}).toArray(function (err, docs) {
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        var promises = []
+        docs.forEach(doc => {
+          var machineID = doc.machineID
+          promises.push(getEachMachineRecords(db, machineID, from, to).then(results => {
+            machines[machineID] = results
+          }))
+        })
+
+        Promise.all(promises).then(() => {
+          res.send({
+            type: true,
+            data: machines
+          })
+          db.close()
+        }).catch(err => {
+          console.log(err)
+          res.send({
+            type: false
+          })
+          db.close()
+        })
+      }
+    })
+  }).catch(err => {
+    if (err) {
+      res.send({
+        type: false,
+        data: `Can't connect to ${config.dbUrl}${config.dbName}`
+      })
+    }
+  })
+})
+*/
+app.get('/api/getDefectiveTable/:machineIDArr/:from/:to/:ind/:index', function (req, res) {
+  var machineIDs = req.params.machineIDArr.split(",")
+  var ind = req.params.ind
+  var index = req.params.index
+  //console.log('getdefectiveTable');
+//console.log('machineIDs : ' + machineIDs)
+
+  var subStr = firstDailyPoint.split(':')
+  var from = moment(moment(req.params.from).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+  var to = moment(moment(req.params.to).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').add(1,'day').format('YYYY-MM-DD HH:mm:ss')).toDate()
+//console.log([from.toString(), to.toString()])
+	
+	//machineIDs = ["1A01", "1A02"]
+	
+  MongoClient.connect(config.dbUrl, function(err, client) {
+    if (err) {
+console.log('failed to connect')
+      res.send({
+        type: false,
+        data: 'Error occured: ' + err
+      })
+    } else {
+      var db = client.db(config.dbName);
+
+      getDefectiveTableMachineRecords (db, machineIDs, from, to, ind, index, function(defectiveTableReport) {
+	  console.log('defectiveTableReport : ' +  JSON.stringify(defectiveTableReport))
+
+	  // temperary fill in
+	  if ( defectiveTableReport.length == 0 ) {
+		console.log('data empty')
+	 	var defectiveData = {
+		    machineID : machineIDs[0],
+		    totalMoldCount : 0,
+		    totalTargetCount : 0,
+		    totalWarehousing : 0,
+		    totalChangeMold : 0,
+		    ind : ind,
+		    index : index
+		}
+		defectiveTableReport.push(defectiveData)
+	  }
+
+	  res.send({
+	      type:true,
+	      data: defectiveTableReport
+	  })
+      })
+    }
+  })      
+})
+app.get('/api/getDefectiveTable_BK/:range/:dt/:months/:keyTxt', function (req, res) {
+  var range = (req.params.range).split(',')
+  var keyTxt = (req.params.keyTxt).split(',')
+  var dataRet1 = {}
+  var dataRetT = {}
+  MongoClient.connect(config.dbUrl, function (err, client) {
+    if (err) {
+    } else {
+      client.db(config.dbName).collection('organization').find({}).toArray(function (err1, docs) {
+        if(err1) {
+
+        } else {
+          console.log(docs)
+          console.log(range)
+          range.forEach(subRange => {
+            var root = docs.find(function(elm) {
+              return elm._id === subRange
+            })
+            console.log(root)
+            if (root.son === '') {
+            } else {
+              console.log(root.son)
+              root.son.forEach(sn => { // 開始執行1A01, 1A02, 1A03...等資料計算並填入結構
+                dataRet1[sn] = []
+                var obj1 = {}
+                var obj2 = {}
+                var objVal1 = [1004.6, 5.0, 3.8, 2.0, 1001.8, 2.0, 6.2, 4.0, 1003.0, 4.5, 3.1, 1004.5]
+                var objVal2 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+                for (var i = 0; i < keyTxt.length; i++) {
+                  obj1[keyTxt[i]] = objVal1[i]
+                  obj2[keyTxt[i]] = objVal2[i]
+                }
+                dataRet1[sn].splice(dataRet1[sn].length, 0, obj1)
+                dataRet1[sn].splice(dataRet1[sn].length, 0, obj2)
+              })
+            }
+            dataRetT[root._id] = dataRet1 // 相同區馭完成標記對應區域
+          })
+          res.send({
+            type: true,
+            data: dataRetT
+          })
+        }
+      })
+    }
+  })
+  var dataRet = {
+  '1A': [{
+    '10408': 1004.6,
+    '10409': 5.0,
+    '10410': 3.8,
+    '10411': 2.0,
+    '10412': 1001.8,
+    '10501': 2.0,
+    '10502': 6.2,
+    '10503': 4.0,
+    '10504': 1003.0,
+    '10505': 4.5,
+    '10506': 3.1,
+    '10507': 1004.5
+  }, {
+    '10408': 1,
+    '10409': 2,
+    '10410': 3,
+    '10411': 4,
+    '10412': 5,
+    '10501': 6,
+    '10502': 7,
+    '10503': 8,
+    '10504': 9,
+    '10505': 10,
+    '10506': 11,
+    '10507': 12
+  }],
+  '1B': [{
+    '10408': 2004.6,
+    '10409': 5.0,
+    '10410': 3.8,
+    '10411': 2.0,
+    '10412': 1001.8,
+    '10501': 2.0,
+    '10502': 6.2,
+    '10503': 4.0,
+    '10504': 1003.0,
+    '10505': 4.5,
+    '10506': 3.1,
+    '10507': 1004.5
+  }]
+  }
+})
+var permissionSetting = require('./permissionSetting.js')
+app.get('/api/getPermissionList', function (req, res) {
+  permissionSetting.getPermissionList(res)
+})
+app.get('/api/getPermissionDetail', function (req, res) {
+  permissionSetting.getPermissionDetail(res)
+})
+var prodDepartSetting = require('./prodDepartSetting.js')
+app.get('/api/getPropertyNumber', function (req, res) {
+  prodDepartSetting.getPropertyNumber(res)
+})
+app.get('/api/getOrganizationStructure', function (req, res) {
+  prodDepartSetting.getOrganizationStructure(res)
+})
+app.get('/api/firstDailyPoint', function (req, res) {
+  console.log(firstDailyPoint)
+  res.send({
+    type: true,
+    data: firstDailyPoint
+  })
+})
+var firstDailyPoint = ''
+var hwCfgList = []
+function getFirstDailyPoint () {
+  console.log(config.dbUrl)
+  MongoClient.connect(config.dbUrl, function (err, client) {
+    if (err) {
+      console.log('Data is gone')
+      var initDoc = {
+        '_id': 'timeSlicePoint',
+        '日切換點': '08:00',
+        '時段點1': '12:00',
+        '時段點2': '16:30',
+        '時段點3': '20:00',
+        '時段點4': '23:00'
+      }
+      // client.db(config.dbName).collection(config.sysConfig).insertOne(initDoc)
+      firstDailyPoint = '08:00'
+      console.log('new')
+      console.log(firstDailyPoint)
+    } else {
+      var doc = client.db(config.dbName).collection(config.sysConfig).findOne({'_id': config.timeSlicePoint})
+      Promise.all([doc]).then((val) => {
+        firstDailyPoint = (val[0])['日切換點']
+        console.log(val)
+        console.log(firstDailyPoint)
+      }).catch(err => {
+        console.log('Data is gone')
+        var initDoc = {
+          '_id': 'timeSlicePoint',
+          '日切換點': '08:00',
+          '時段點1': '12:00',
+          '時段點2': '16:30',
+          '時段點3': '20:00',
+          '時段點4': '23:00'
+        }
+        client.db(config.dbName).collection(config.sysConfig).insertOne(initDoc)
+        firstDailyPoint = '08:00'
+        console.log('new')
+        console.log(firstDailyPoint)
+      })
+    }
+  })
+}
+function getHwCfg () {
+  MongoClient.connect(config.dbUrl, function (err, client) {
+    if (err) {
+    } else {
+      client.db(config.dbName).collection(config.machineListColName).find({}).toArray(function (err1, docs) {
+        if(err1) {
+
+        } else {
+          hwCfgList = docs
+        }
+      })
+    }
+  })
+}
+function test () {
+  MongoClient.connect(config.dbUrl, function (err, client) {
+    if (err) {
+    } else {
+      var Level1 = [{
+        _id: '1A01', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI14', abridge: '機台'
+      }, {
+        _id: '1A02', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI52', abridge: '機台'
+      }, {
+        _id: '1A03', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI34', abridge: '機台'
+      }, {
+        _id: '1A04', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI20', abridge: '機台'
+      }, {
+        _id: '1A05', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI18', abridge: '機台'
+      }, {
+        _id: '1A06', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI17', abridge: '機台'
+      }, {
+        _id: '1A07', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI16', abridge: '機台'
+      }, {
+        _id: '1A08', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI15', abridge: '機台'
+      }, {
+        _id: '1A09', father: '1A', son: [], level: 1, levelName: '機台編號', data: 'PIPI07', abridge: '機台'
+      }]
+      var Level2 = [{
+        _id: '1A', father: '成型一課', son: ['1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09'], level: 2, levelName: '區',  data: ''
+      }, {
+        _id: '1B', father: '成型一課', son: [], level: 2, levelName: '區',  data: ''
+      }, {
+        _id: '1C', father: '成型一課', son: [], level: 2, levelName: '區', data: ''
+      }]
+      var Level3 = [{
+        _id: '成型一課', father: '全廠', son: ['1A', '1B', '1C'], level: 3, levelName: '課',  data: ''
+      }, {
+        _id: '成型二課', father: '全廠', son: ['2A', '2B', '2C'], level: 3, levelName: '課', data: ''
+      }]
+      var Level4 = [{
+        _id: '全廠', father: 'organization', son: ['成型一課', '成型二課'], level: 4, levelName: '廠',  data: ''
+      }]
+      client.db(config.dbName).collection('organization').drop()
+      client.db(config.dbName).collection('organization').insertMany(Level1)
+      client.db(config.dbName).collection('organization').insertMany(Level3)
+      client.db(config.dbName).collection('organization').insertMany(Level4)
+      client.db(config.dbName).collection('organization').insertMany(Level2).then(doc => {
+        console.log('1111111')
+        console.log(doc.ops)
+        var tmp = (doc.ops).filter(function(Item, Index, Arr) {
+          return Item._id === '1A'
+        })
+        console.log(tmp)
+      })
+    }
+  })
+}
+function getEachMachineRecordsForOrder (client, machineID) {
+  console.log('getEachMachineRecordsForOrder')
+  return new Promise((resolve, reject) => {
+    var records = []
+
+    client.db('ldm').collection(machineID).find({$or: [{machineStatusType: '半自動'}, {machineStatusType: '全自動'}]}).toArray(function (err, docs) {
+      if (err) {
+console.log('failed to find')
+        reject(err)
+      } else {
+//console.log( docs )
+        docs.forEach(doc => {
+          if (doc['orderNumber'] !== undefined) {
+            records.push(doc)
+          }
+	  else {
+	    console.log('ordernumber undefined')
+	  }
+        })
+//console.log(records)
+        resolve(records)
+      }
+    })
+  })
+}
+function setOrderNumberDB () {
+  console.log(config.dbUrl)
+  MongoClient.connect(config.dbUrl, function (err, client) {
+    if (err) {
+      
+    } else {
+      var machineIDarr = ['1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09']
+      var promises = []
+      var machines = {}
+      machineIDarr.forEach(machineID => {
+        promises.push(getEachMachineRecordsForOrder(client, machineID).then(results => {
+          machines[machineID] = results
+        }))
+      })
+      var propObj = {}
+      var propIdx = 0 
+      Promise.all(promises).then(() => {
+        var objKeys = Object.keys(machines)
+        objKeys.forEach(key => {
+          (machines[key]).forEach(doc => {
+            var orderNumber = doc.orderNumber || ''
+            if (orderNumber.length > 3) {
+              if(!propObj.hasOwnProperty(doc.orderNumber)) {
+                propObj[doc.orderNumber] = propIdx++
+              }
+            }
+          })
+        })
+        console.log(Object.keys(propObj))
+        var orderNumberList = Object.keys(propObj)
+        var arr = []
+        orderNumberList.forEach(orderN => {
+          var obj = {}
+          var product = ''
+          objKeys.forEach(key => {
+            var f = (machines[key]).filter(doc => {
+              return doc.orderNumber === orderN
+            })
+            if (f.length > 0) {
+              product = f[0].product
+              var total = f.reduce(function (previousValue, currentValue, index, array) {
+                return previousValue + currentValue.moldCount  
+              }, 0)
+              obj[key] = total
+            } else {
+              obj[key] = 0
+            }
+          })
+          arr.splice(arr.length, 0, {
+            '_id': orderN,
+            'product': product,
+            'moldCount': obj,
+            'warehousing': 0
+          })
+        })
+        console.log(arr)
+        try {
+          var db = client.db('ldm')
+          db.collections(function(err, cols){
+            var exit = cols.some(col => {
+              console.log(col.s.name)
+              return col.s.name === 'settedOrderNumberList' ? true : false
+            })
+            console.log(exit)
+            if (!exit) {
+              client.db('ldm').collection('settedOrderNumberList').insertMany(arr)
+            }
+          })   
+        } catch (e) {
+          console.log(e)
+        }
+      })
+    }
+  })
+}
+function updateOrderNumberDB () {
+  console.log(config.dbUrl)
+  MongoClient.connect(config.dbUrl, function (err, client) {
+    if (err) {
+      
+    } else {
+      var machineIDarr = ['1A01', '1A02', '1A03', '1A04', '1A05', '1A06', '1A07', '1A08', '1A09']
+      var promises = []
+      var machines = {}
+      machineIDarr.forEach(machineID => {
+        promises.push(getEachMachineRecordsForOrder(client, machineID).then(results => {
+          machines[machineID] = results
+        }))
+      })
+      var propObj = {}
+      var propIdx = 0 
+      Promise.all(promises).then(() => {
+        var objKeys = Object.keys(machines)
+        objKeys.forEach(key => {
+          (machines[key]).forEach(doc => {
+            var orderNumber = doc.orderNumber || ''
+            if (orderNumber.length > 3) {
+              if(!propObj.hasOwnProperty(doc.orderNumber)) {
+                propObj[doc.orderNumber] = propIdx++
+              }
+            }
+          })
+        })
+        console.log(Object.keys(propObj))
+        var orderNumberList = Object.keys(propObj)
+        var arr = []
+        MongoClient.connect(config.dbUrl, function(err, client) {
+          if (err) {
+            socket.emit('setOrderNumberFail', data)
+          } else {
+            var arr = []
+            orderNumberList.forEach(orderN => {
+              // M#O#Q
+              arr.splice(arr.length, 0, {
+                '派單號碼': {$eq: orderN}
+              })
+            })
+            client.db('pmDB').collection('成型派單明細').find({$or: arr}, function(err1, orderDetail) {
+              if (err1) {
+                console.log('Server not found')
+              } else if (orderDetail.length === 0) {
+                console.log('data not found')
+              } else {
+                orderDetail.forEach(order => {
+                  objKeys.forEach(key => {
+                    client.db(config.dbName).collection(key).updateMany({
+                      'orderNumber': {$eq: order['派單號碼']}
+                    }, {
+                      $set: {
+                        'MOQ': order['M#O#Q#'],
+                        'createDate': order['開單_日期'],
+                        'deadlineWarehousing': order['最終入庫日期']
+                      }
+                    })
+                  })
+                })
+              }
+            })
+          }
+        })
+        console.log(arr)
+      })
+    }
+  })
+}
+function checkOrder (machineID, orderNumber) {
+  console.log('checkOrder')
+  MongoClient.connect(config.dbUrl, function (err, client) {
+    if (err) {
+      
+    } else {
+      client.db('ldm').collection(machineID).find({$and: [{orderNumber: orderNumber}, {$or: [{machineStatusType: '半自動'}, {machineStatusType: '全自動'}]}]}).toArray(function (err, docs) {
+        if (err) {
+  console.log('failed to find')
+        } else {
+          if(docs.length === 0) {
+            console.log('write ordernumber fail')
+          } else {
+            var total = docs.reduce(function (previousValue, currentValue, index, array) {
+              console.log(currentValue.moldCount  )
+              return previousValue + currentValue.moldCount  
+            }, 0)
+            var objDoc = {}
+            var obj = {}
+            obj[machineID] = total
+            objDoc = {
+              '_id': orderNumber,
+              'product': docs[0].product,
+              'moldCount': obj,
+              'warehousing': 0
+            }
+            // client.db('ldm').collection('settedOrderNumberList').updateOne({'_id': orderNumber}, {$set: obj}, { upsert: true })
+            console.log('checkOrder')
+            console.log(orderNumber)
+            console.log(obj)
+            // 判斷orderNumber是否存在
+            client.db('ldm').collection('settedOrderNumberList').find({'_id': orderNumber}).toArray(function (err, docs) {
+              if (err) {
+              } else {
+                if(docs.length === 0) {
+                  console.log(orderNumber)
+                  console.log(docs)
+                  // orderNumber尚未產生
+                  console.log('settedOrderNumberList empty')
+                  client.db('ldm').collection('settedOrderNumberList').insertOne(objDoc)
+                } else {
+                  console.log(docs)
+                  var doc = docs[0]
+                  console.log(doc)
+                  var moldCount = doc['moldCount']
+                  console.log(moldCount)
+                  console.log(moldCount[machineID])
+                  moldCount[machineID] = total
+                  client.db('ldm').collection('settedOrderNumberList').updateOne({'_id': orderNumber}, {$set: {'moldCount': moldCount}}, { upsert: true })
+                  console.log(doc.moldCount)
+                  console.log('settedOrderNumberList exit')
+                }
+              }
+            }) 
+          }
+        }
+      })
+    }
+  })
+}
+var clientList = {}
+var clientListIndex = 0
+var monitorModalClientList = {}
+var monitorModalClientIndex = 0
+var dailyReportIntegratedClientList = {}
+var dailyReportIntegratedClientIndex = 0
+server.listen(app.get('port'), function () {
+  console.log('Express server listening on port ' + app.get('port'))
+  getFirstDailyPoint()
+  getHwCfg()
+  test()
+  setOrderNumberDB()
+  updateOrderNumberDB()
+})
+
+var socket = io.listen(server)
+socket.on('connection', function (client) {
+  console.log('A connection was established')
+  client.on('disconnect', function () {
+    console.log('Server has disconnected')
+  })
+  //----------------------------------
+  client.on('setNewUser', function (data) {
+    permissionSetting.setNewUser(data, socket)
+  })
+  //----------------------------------
+  client.on('setNewOrganization', function (data) {
+    prodDepartSetting.setNewOrganization(data, socket)
+  })
+  client.on('deleteOrganization', function (data) {
+    prodDepartSetting.deleteOrganization(data, socket)
+  })
+  //----------------------------------
+  client.on('setNoteInfo', function (data) {
+    console.log(data)
+    var id = data._id
+    var machineID = data.machineID
+    var note = data.note
+    MongoClient.connect(config.dbUrl, function (err, client) {
+      if (err) {
+        socket.emit('setNoteInfoRes', '')
+      } else {
+        var doc = client.db(config.dbName).collection(machineID).findOneAndUpdate({_id: ObjectID(id)}, {$set: {'note': note}}, {returnOriginal : false})
+        Promise.all([doc]).then((val) => {
+          // all loaded
+          console.log(val)
+          console.log('doc')
+          socket.emit('setNoteInfoRes', val[0].value)
+          console.log(val[0].value)
+        }).catch(err => {
+          socket.emit('setNoteInfoRes', '')
+        })
+      }
+    })
+  })
+  client.on('commCommand', function (data) {
+    var objectId = new ObjectID();
+    socket.emit(data, objectId)
+    console.log(objectId)
+  })
+  client.on('addClientMonitor', function (data) {
+    if(!monitorModalClientList.hasOwnProperty(data))
+    {
+      monitorModalClientList[data] = socket
+      monitorModalClientIndex++
+      console.log(monitorModalClientList)
+    }
+  })
+  client.on('deleteClientMonitor', function (data) {
+    if(monitorModalClientList.hasOwnProperty(data))
+    {
+      delete monitorModalClientList[data]
+      monitorModalClientIndex--
+      console.log(monitorModalClientList)
+    }
+  })
+  //---------------------------------------
+  client.on('addClientDailyReportIntegrated', function (data) {
+    if(!dailyReportIntegratedClientList.hasOwnProperty(data))
+    {
+      dailyReportIntegratedClientList[data] = socket
+      dailyReportIntegratedClientIndex++
+      console.log(dailyReportIntegratedClientList)
+    }
+  })
+  client.on('deleteClientDailyReportIntegrated', function (data) {
+    if(dailyReportIntegratedClientList.hasOwnProperty(data))
+    {
+      delete dailyReportIntegratedClientList[data]
+      dailyReportIntegratedClientIndex--
+      console.log(dailyReportIntegratedClientList)
+    }
+  })
+  client.on('reqUpdateShiftDailyReportIntegrated', function (data) {
+    var machineID = data.machineID
+    var orderNumber = data.orderNumber
+    var reportDate = moment(data.reportDate).format('YYYY-MM-DD')
+    var trigTime = moment(data.trigTime).format('HH:mm:ss').toString()
+    var lastTrigDate = moment(data.lastTrigTime).format('YYYY-MM-DD')
+    var lastTrigTime = ''
+    if(reportDate < lastTrigDate) {
+      lastTrigTime = moment(moment(moment(data.lastTrigTime).format('HH:mm:ss')).hour() + 24).toString() + ':' + 
+      moment(moment(moment(data.lastTrigTime).format('HH:mm:ss')).minute()).toString() + ':' +
+      moment(moment(moment(data.lastTrigTime).format('HH:mm:ss')).second()).toString()
+    } else {
+      lastTrigTime = moment(data.lastTrigTime).format('HH:mm:ss').toString()
+    }
+    
+    console.log('calendar' + moment(reportDate).year())
+    console.log(trigTime)
+    console.log(lastTrigTime)
+    console.log(data.lastTrigTime)
+    var startDate =  moment(reportDate).format('YYYY/M/DD')
+    var first = false
+    var second = false
+    var third = false
+    MongoClient.connect(config.dbUrl, function(err, client){
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+        client.db('calendar' + moment(reportDate).year()).collection(machineID).findOne({_id: {$eq: startDate}}, function(err2, doc2){
+          if(err2) {
+            first = false
+            second = false
+            third = false
+            console.log('err2')
+          } else {
+            /* console.log(doc2)
+            console.log(trigTime)
+            console.log(lastTrigTime)
+            // ------------------------------------------------------------------------------
+            if((trigTime >= doc2['firstS']) && (trigTime < doc2['firstE'])) {
+              first = doc2['first']
+            } else if((lastTrigTime >= doc2['firstS']) && (lastTrigTime < doc2['firstE'])) {
+              first = doc2['first']
+            } else if((trigTime <= doc2['firstS']) && (lastTrigTime >= doc2['firstE'])) {
+              first = doc2['first']
+            }
+            // ------------------------------------------------------------------------------
+            if((trigTime >= doc2['secondS']) && (trigTime < doc2['secondE'])) {
+              second = doc2['second']
+            } else if((lastTrigTime >= doc2['secondS']) && (lastTrigTime < doc2['secondE'])) {
+              second = doc2['second']
+            } else if((trigTime <= doc2['secondS']) && (lastTrigTime >= doc2['secondE'])) {
+              second = doc2['second']
+            }
+            // ------------------------------------------------------------------------------
+            if((trigTime >= doc2['thirdS']) && (trigTime < doc2['thirdE'])) {
+              third = doc2['third']
+            } else if((lastTrigTime >= doc2['thirdS']) && (lastTrigTime < doc2['thirdE'])) {
+              third = doc2['third']
+            } else if((trigTime <= doc2['thirdS']) && (lastTrigTime >= doc2['thirdE'])) {
+              third = doc2['third']
+            } */
+            var predMoldCnt = 0
+            var acc = 0
+            first = doc2['first']
+            second = doc2['second']
+            third = doc2['third']
+            var retObj = {
+              machineID: machineID,
+              orderNumber: orderNumber,
+              first: first,
+              second: second,
+              third: third,
+              accMoldCnt: acc,
+              percentage: 0
+            }
+            socket.emit('updateShiftDailyReportInteg', retObj)
+            /* client.db(config.dbName).collection(machineID).find({$and: [{'orderNumber': orderNumber}, {$or: [{'machineStatusType': '半自動'}, {'machineStatusType': '全自動'}]}]}).toArray(function(err3, docs3) {
+              if (err3) {
+                acc = 0
+              } else {
+                predMoldCnt = docs3[0].predMoldCnt
+                acc = docs3.reduce(function (previousValue, currentValue, index, array) {
+                  return previousValue + currentValue.moldCount  
+                }, 0)
+              }
+              console.log(predMoldCnt)
+            var retObj = {
+              machineID: machineID,
+              orderNumber: orderNumber,
+              first: first,
+              second: second,
+              third: third,
+              accMoldCnt: acc,
+              percentage: acc / predMoldCnt
+            }
+            socket.emit('updateShiftDailyReportInteg', retObj)
+          }) */
+          }
+        })
+      }
+    })
+  })
+  client.on('reqUpdateAccDailyReportIntegrated', function (data) {
+    var machineID = data.machineID
+    var orderNumber = data.orderNumber
+    MongoClient.connect(config.dbUrl, function(err, client){
+      if (err) {
+        res.send({
+          type: false,
+          data: 'Error occured: ' + err
+        })
+      } else {
+            var predMoldCnt = 0
+            var acc = 0
+            client.db(config.dbName).collection(machineID).find({$and: [{'orderNumber': orderNumber}, {$or: [{'machineStatusType': '半自動'}, {'machineStatusType': '全自動'}]}]}).toArray(function(err3, docs3) {
+              if (err3) {
+                acc = 0
+              } else {
+                predMoldCnt = docs3[0].predMoldCnt
+                acc = docs3.reduce(function (previousValue, currentValue, index, array) {
+                  return previousValue + currentValue.moldCount  
+                }, 0)
+              }
+              console.log(predMoldCnt)
+            var retObj = {
+              machineID: machineID,
+              orderNumber: orderNumber,
+              accMoldCnt: acc,
+              percentage: acc / predMoldCnt
+            }
+            socket.emit('updateAccDailyReportInteg', retObj)
+          })
+      }
+    })
+  })
+  //---------------------------------------
+  client.on('failToClrOrderNumber', function (data) {
+    id = data._id
+    var machineID = data.machineID
+    var orderNumber = data.orderNumber
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+        socket.emit('setOrderNumberFail', data)
+      } else {
+        //client.db(config.dbName).collection(machineID).updateMany({
+        client.db(config.dbName).collection(machineID).findOneAndUpdate({
+          '_id': {$eq: ObjectID(id)}
+        },{
+          $set: {
+            'product': '',
+            'standard': 0,
+            'orderNumber': '',
+            'performance': '',
+            'deadline': '',
+            'targetCount': '',
+            'badNum': 0,
+            'badRate': 0,
+            'totalAlm': 0,
+            'warehousing': 0,
+            'componentNum': '',
+            'moldNum': '',
+            'moldArray': '',
+            'prodName': '',
+            'predMachine': '',
+            'predMoldCnt': '',
+            'cavities': 0,
+            'standard': 0,
+            'moldName':''
+          }
+        }, {returnNewDocument: false}, function(err3, doc) {
+          console.log('Update Finish')
+          // client.db(config.dbName).collection(machineID).findOne({'_id': ObjectID(id)}, function(err4, doc) {
+            if (err3) {
+              socket.emit('setOrderNumberFail', data)
+            } else {
+              console.log('failToClrOrderNumberSuccess')
+              socket.emit('failToClrOrderNumberSuccess', doc.value)
+            }
+            console.log(doc.value)
+            checkOrder(machineID, doc.value.orderNumber)
+          // })
+          console.log('id')
+          console.log(config.dbName)
+          console.log(machineID)
+          console.log(id)
+        })
+      }
+    })
+  })
+  client.on('clrOrderNumber', function (data) {
+    id = data._id
+    var machineID = data.machineID
+    var orderNumber = data.orderNumber
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+        socket.emit('setOrderNumberFail', data)
+      } else {
+        //client.db(config.dbName).collection(machineID).updateMany({
+        client.db(config.dbName).collection(machineID).findOneAndUpdate({
+          '_id': {$eq: ObjectID(id)}
+        },{
+          $set: {
+            'product': '',
+            'standard': 0,
+            'orderNumber': '',
+            'performance': '',
+            'deadline': '',
+            'targetCount': '',
+            'badNum': 0,
+            'badRate': 0,
+            'totalAlm': 0,
+            'warehousing': 0,
+            'componentNum': '',
+            'moldNum': '',
+            'moldArray': '',
+            'prodName': '',
+            'predMachine': '',
+            'predMoldCnt': '',
+            'cavities': 0,
+            'standard': 0,
+            'moldName':''
+          }
+        }, {returnNewDocument: false}, function(err3, doc) {
+          console.log('Update Finish')
+          // client.db(config.dbName).collection(machineID).findOne({'_id': ObjectID(id)}, function(err4, doc) {
+            if (err3) {
+              socket.emit('setOrderNumberFail', data)
+            } else {
+              console.log('setOrderNumberSuccess')
+              socket.emit('setOrderNumberSuccess', doc.value)
+            }
+            console.log(doc.value)
+            checkOrder(machineID, doc.value.orderNumber||'')
+          // })
+          console.log('id')
+          console.log(config.dbName)
+          console.log(machineID)
+          console.log(id)
+        })
+      }
+    })
+  })
+  client.on('setOrderNumber', function (data) {
+    console.log(data)
+
+    var id = data._id
+    var machineID = data.machineID
+    var orderNumber = data.orderNumber
+    var trigTime = data.trigTime
+
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+        socket.emit('setOrderNumberFail', data)
+      } else {
+        var col = client.db('pmDB').collection('成型派單明細')
+        col.findOne({'派單號碼': {$eq: orderNumber}}, function(err, orderDetail) {
+          if (err) {
+            socket.emit('setOrderNumberFail', data)
+          } else {
+            client.db('pmDB').collection('貨品資料對應可生產模具').findOne({'_id':orderDetail['成品料號']}, function(err1, moldDetail) {
+              if (err1) {
+                socket.emit('setOrderNumberFail', data)
+              } else {
+                console.log('setOrderNumber')
+                console.log(orderDetail)
+                console.log(moldDetail)
+                var moldDetailKey = Object.keys(moldDetail)
+                var availableMoldKey = moldDetailKey.filter(elm => elm.includes('可用模具'))
+                var arr = []
+                availableMoldKey.forEach(function(elm) {
+                  arr.splice(arr.length, 0, moldDetail[elm])
+                })
+                console.log(arr)
+                if (arr.length <= 0) {
+                  socket.emit('moldNotExit', data)
+                } else {
+                console.log(trigTime)
+                client.db(config.dbName).collection(machineID).findOne({'_id': ObjectID(id)}, function(err2, doc) {
+                  if (err2) {
+                    socket.emit('setOrderNumberFail', data)
+                  } else {
+                    console.log(doc)
+                    client.db(config.dbName).collection(machineID).updateMany({
+                      $and: [ {'trigTime': {$lte: doc.trigTime}},
+                      { $or: [
+                        {'orderNumber': {$exists: false}}, // 
+                        {'orderNumber': {$eq: ''}}, // 
+                        {'orderNumber': {$type: 'null'}}, // 
+                        {'orderNumber': {$eq: orderNumber}},
+                        {'_id': {$eq: ObjectID(id)}}
+                      ]},
+                      { $or: [
+                        {'machineStatusType': {$eq: '全自動'}},
+                        {'machineStatusType': {$eq: '半自動'}},
+                        {'machineStatusType': {$eq: '警報'}}
+                      ]}]
+                      /* { $or: [
+                        {'moldNum': {$exists:false}}, // 
+                        {'moldNum': {$eq:''}}, // 
+                        {'moldNum': {$type: 'null'}},
+                        {'_id': {$eq: ObjectID(id)}}
+                      ]} */
+                    },{
+                      $set: {
+                        'product': orderDetail['成品料號'],
+                        'standard': 0,
+                        'orderNumber': orderNumber,
+                        'performance': orderDetail['成品料號'],
+                        'deadline': orderDetail['最遲完成日'],
+                        'targetCount': orderDetail['派單數量'],
+                        'badNum': 0,
+                        'badRate': 0,
+                        'totalAlm': 0,
+                        'warehousing': 0,
+                        'componentNum': moldDetail['零件模號'],
+                        'moldNum': arr[0],
+                        'moldArray': arr,
+                        'prodName': orderDetail['成品名稱'],
+                        'predMachine': orderDetail['生產機台'],
+                        'predMoldCnt': orderDetail['生產模數'],
+                        'cavities': 0,
+                        'standard': 0,
+                        'moldName':'',
+                        'MOQ': orderDetail['M#O#Q#'],
+                        'createDate': orderDetail['開單_日期'],
+                        'deadlineWarehousing': orderDetail['最終入庫日期']
+                      }
+                    }, function(err3) {
+                      console.log('Update Finish')
+                      client.db(config.dbName).collection(machineID).findOne({'_id': ObjectID(id)}, function(err4, doc) {
+                        if (err4) {
+                          socket.emit('setOrderNumberFail', data)
+                        } else {
+                          console.log('setOrderNumberSuccess')
+                          socket.emit('setOrderNumberSuccess', doc)
+                        }
+                      })
+                      console.log('id')
+                      console.log(config.dbName)
+                      console.log(machineID)
+                      console.log(orderNumber)
+                      console.log(id)
+                      checkOrder(machineID, orderNumber||'')
+                      // 
+                      // var oldOrderNumber = [doc['orderNumber'], orderNumber]
+                      // oldOrderNumber.forEach(function (elm) {
+                    })
+                  }
+                })
+              }
+              }
+            })
+          }
+        })
+      }
+    })
+      // find the original record, because we need to get complete information for response
+  })
+  /* client.on('setOrderNumber', function (data) {
+    console.log(data)
+
+    var id = data._id
+    var machineID = data.machineID
+    var orderNumber = data.orderNumber
+
+    MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+      var col = db.collection(machineID)
+
+      // find the original record, because we need to get complete information for response
+      col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+        if (err) {
+          socket.emit('setOrderNumberFail', data)
+        } else {
+          if (docs.length === 0) {
+            console.log('no data')
+            data.orderNumber = ''
+            socket.emit('setOrderNumberFail', data)
+          } else {
+            var doc = docs[0]
+
+            // notify the server that the order number is changed, and wait for product update
+            col = db.collection(config.calHandleCommandColName)
+            col.insertOne({
+              id: id,
+              machineID: machineID,
+              orderNumber: orderNumber,
+              opcode: opcodes.set_order_opcode
+            }).then(result => {
+              // console.log(result)
+              col = db.collection(machineID)
+
+              // var testFlag = true
+              // if (testFlag) { // for test
+              //   col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+              //     if (err) {
+              //       data.orderNumber = ''
+              //       socket.emit('setOrderNumberFail', data)
+              //     } else {
+              //       if (docs.length === 0) {
+              //         console.log('no data')
+              //         data.orderNumber = ''
+              //         socket.emit('setOrderNumberFail', data)
+              //       } else {
+              //         doc = docs[0]
+              //         doc['product'] = 'new product'
+              //         doc['moldArray'] = ['x', 'y', 'z']
+              //         doc['orderNumber'] = orderNumber
+              //         socket.emit('setOrderNumberSuccess', doc)
+              //         db.close()
+              //       }
+              //     }
+              //   })
+              // }
+
+              // col.updateOne({'_id': ObjectID(id)}, { $set: {
+              //   product: 'new product',
+              //   orderNumber: orderNumber,
+              //   moldArray: ['x', 'y', 'z']
+              // } }).then(rlt => {
+              //   console.log(rlt)
+              // })
+
+              var newOrderNumber
+              var timeout = 0
+
+              // query the change per second
+              var waitFunc = setInterval(function () {
+                timeout++
+
+                // maximum wait 30 secs, if timeout, just reply the origin record
+                if (timeout >= 5) {
+                  clearInterval(waitFunc)
+                  data.orderNumber = doc.orderNumber
+                  socket.emit('setOrderNumberFail', data)
+                  db.close()
+                } else {
+                  // query the record and judge the product has changed or not yet
+                  col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+                    if (err) {
+                      data.orderNumber = ''
+                      socket.emit('setOrderNumberFail', data)
+                    } else {
+                      if (docs.length === 0) {
+                        console.log('no data')
+                        data.orderNumber = ''
+                        socket.emit('setOrderNumberFail', data)
+                      } else {
+                        doc = docs[0]
+                        newOrderNumber = doc['orderNumber']
+                        if (newOrderNumber !== undefined && newOrderNumber === orderNumber) {
+                          clearInterval(waitFunc)
+                          socket.emit('setOrderNumberSuccess', doc)
+                          db.close()
+                        }
+                      }
+                    }
+                  })
+                }
+              }, 1000)
+            })
+          }
+        }
+      })
+    }).catch(err => {
+      if (err) {
+        data.orderNumber = ''
+        socket.emit('setOrderNumberFail', data)
+      }
+    })
+  }) */
+
+  client.on('setMoldNumber', function (data) {
+    console.log(data)
+    var id = data._id
+    var machineID = data.machineID
+    var moldNum = data.moldNum
+    var moldNum2 = {$or: [{'模具編號': 'MM' + (data.moldNum).slice(2)}, {'模具編號': 'MS' + (data.moldNum).slice(2)}]}
+    var product = data.product
+    var componentNum = data.componentNum
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+        socket.emit('setMoldNumberFail', data)
+      } else {
+        console.log(config.prodDBName)
+        console.log(config.moldListColName)
+        console.log(moldNum)
+        console.log(moldNum2)
+        client.db(config.prodDBName).collection(config.moldListColName).findOne({$and:[{'零件模號': componentNum},  moldNum2 ]}, function(err1, doc) {
+          if (err1) {
+            socket.emit('findMoldListFail', data)
+          } else {
+            console.log(doc)
+            if (doc === null) {
+              console.log('findMoldListFail')
+              socket.emit('findMoldListFail', data)
+            } else {
+            var promises = []
+            client.db(config.dbName).collection(machineID).updateMany({$and: [{'product': {$eq: product}}, {'moldArray': {$elemMatch: {$eq: moldNum}}}]}, { 
+              $set: { 
+                "cavities" : doc['穴數'],
+                "standard" : doc['成型週期'],
+                "moldNum" : moldNum,
+                "moldName" : doc[' 零  件  名  稱   ']
+              } 
+            }).then(() => {
+              client.db(config.dbName).collection(machineID).findOne({'_id': ObjectID(id)}, function(err3, doc1) {
+                if (err3) {
+                  socket.emit('setMoldNumberFail', data)
+                } else {
+                  console.log('setMoldNumberSuccess')
+                  console.log(doc1['cavities'])
+                  socket.emit('setMoldNumberSuccess', doc1)
+                  // process.exit(0)
+                }
+              })
+            })
+          }
+          }
+        })
+      }
+    })
+  })
+  /*client.on('setMoldNumber', function (data) {
+    console.log(data)
+    var id = data._id
+    var machineID = data.machineID
+    var moldNum = data.moldNum
+
+    MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+      var col = db.collection(machineID)
+
+      // find the original record, because we need to get complete information for response
+      col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+        if (err) {
+          socket.emit('setMoldNumberFail', data)
+        } else {
+          if (docs.length === 0) {
+            console.log('no data')
+            data.moldNum = ''
+            socket.emit('setMoldNumberFail', data)
+          } else {
+            var doc = docs[0]
+
+            // notify the server that the order number is changed, and wait for product update
+            col = db.collection(config.calHandleCommandColName)
+            col.insertOne({
+              id: id,
+              machineID: machineID,
+              moldNumber: moldNum,
+              opcode: opcodes.set_moldNumber_opcode
+            }).then(result => {
+              // console.log(result)
+              col = db.collection(machineID) */
+/*
+              var testFlag = true
+              if (testFlag) { // for test
+                col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+                  if (err) {
+                    data.moldNum = ''
+                    socket.emit('setMoldNumberFail', data)
+                  } else {
+                    if (docs.length === 0) {
+                      console.log('no data')
+                      data.moldNum = ''
+                      socket.emit('setMoldNumberFail', data)
+                    } else {
+                      doc = docs[0]
+                      doc['product'] = 'new product'
+                      doc['moldArray'] = ['1', '2', '3']
+                      doc['moldNum'] = moldNum
+                      socket.emit('setMoldNumberSuccess', doc)
+                      db.close()
+                    }
+                  }
+                })
+              }
+*/
+              /* var newMoldNum
+              var timeout = 0
+
+              // query the change per second
+              var waitFunc = setInterval(function () {
+                timeout++
+                // doc['moldNum'] = moldNum
+
+                // maximum wait 30 secs, if timeout, just reply the origin record
+                if (timeout >= 5) {
+                  clearInterval(waitFunc)
+                  data.moldNum = doc.moldNum
+                  socket.emit('setMoldNumberFail', data)
+                  db.close()
+                } else {
+                  // query the record and judge the product has changed or not yet
+                  col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+                    if (err) {
+                      data.moldNum = ''
+                      socket.emit('setMoldNumberFail', data)
+                    } else {
+                      if (docs.length === 0) {
+                        console.log('no data')
+                        data.moldNum = ''
+                        socket.emit('setMoldNumberFail', data)
+                      } else {
+                        doc = docs[0]
+                        newMoldNum = doc['moldNum']
+                        if (newMoldNum !== undefined && newMoldNum === moldNum) {
+                          clearInterval(waitFunc)
+                          socket.emit('setMoldNumberSuccess', doc)
+                          db.close()
+                        }
+                      }
+                    }
+                  })
+                }
+              }, 1000)
+            })
+          }
+        }
+      })
+    }).catch(err => {
+      if (err) {
+        data.moldNum = ''
+        socket.emit('setMoldNumberFail', data)
+      }
+    })
+  }) */
+  client.on('setWarehousingPeriodlyReport', function (data) {
+    // var endTime = data.lastTrigTime // moment(moment(data.endTime).format('M/DD HH:mm:ss')).toDate()
+    var subStr = firstDailyPoint.split(':')
+    var endTime = moment(moment(data.lastTrigTime).add(parseInt(subStr[0]), 'hours').add(parseInt(subStr[1]), 'minutes').format('YYYY-MM-DD HH:mm:ss')).toDate()
+    var machineID = data.machineID
+    var warehousing = data.warehousing
+    var product = data.product
+    var orderNumber = data.orderNumber
+    var lastID = data.lastID
+    console.log(data)
+    console.log(data.warehousing)
+    console.log(endTime)
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+        socket.emit('setWarehousingFail', data)
+      } else {
+        // client.db(config.dbName).collection(machineID).updateMany({'product': product}, {$set:{'warehousing': 0}}, function(err2){
+        client.db(config.dbName).collection(machineID).updateMany({'orderNumber': orderNumber}, {$set:{'warehousing': 0}}, function(err2) {
+          if (err2) {
+            socket.emit('setWarehousingFail', data)
+          } else {
+            client.db(config.dbName).collection('settedOrderNumberList').updateOne({'_id': orderNumber}, {$set: {'warehousing': parseInt(warehousing)}}, { upsert: true })
+            client.db(config.dbName).collection(machineID).findOneAndUpdate( {'_id': ObjectID(lastID)}, {$set: {'warehousing': parseInt(warehousing)}}, {returnOriginal: false}, function (err1, doc) {
+              if (err1) {
+                socket.emit('setWarehousingFail', data)
+              } else {
+                console.log(doc)
+                if (doc.value !== null) {
+                  if (doc.value['warehousing'] === parseInt(warehousing)) {
+                    socket.emit('setWarehousingSuccess', doc)
+                  } else {
+                    socket.emit('setWarehousingFail', data)
+                  }
+                } else {
+                  socket.emit('setWarehousingFail', data)
+                }
+              }
+            })
+          }
+        })
+      }
+    })
+  })
+  client.on('setBadNumPeriodlyReport', function (data) {
+    var lastID = data.lastID
+    var machineID = data.machineID
+    var badNum = data.badNum
+    var product = data.product
+    MongoClient.connect(config.dbUrl, function(err, client) {
+      if (err) {
+        socket.emit('setBadNumFail', data)
+        console.log('1')
+      } else {
+          client.db(config.dbName).collection(machineID).findOneAndUpdate({'_id': ObjectID(lastID)}, {$set: {'badNum': parseInt(badNum)}}, {returnOriginal: false}, function (err1, doc) {
+          if (err1) {
+            console.log('2')
+            socket.emit('setBadNumFail', data)
+          } else {
+            console.log('3')
+            console.log(doc.value)
+            console.log(data)
+            if (doc.value['badNum'] === parseInt(badNum)) {
+              socket.emit('setBadNumSuccess', doc)
+            } else {
+              socket.emit('setBadNumFail', data)
+            }
+          }
+        })
+      }
+    })
+  })
+  client.on('setWarehousing', function (data) {
+    // console.log(data)
+    var id = data._id
+    var machineID = data.machineID
+    var warehousing = data.warehousing
+    var product = data.product
+
+    MongoClient.connect(config.dbUrl + config.dbName).then(db => {
+      var col = db.collection(machineID)
+
+      // find the original record, because we need to get complete information for response
+      col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+        if (err) {
+          socket.emit('setWarehousingFail', data)
+        } else {
+          if (docs.length === 0) {
+            console.log('no data')
+            data.warehousing = ''
+            socket.emit('setWarehousingFail', data)
+          } else {
+            var doc = docs[0]
+            var newWarehousing
+
+            // notify the server that the order number is changed, and wait for product update
+            col = db.collection(config.calHandleCommandColName)
+            col.insertOne({
+              id: id,
+              machineID: machineID,
+              warehousing: warehousing,
+              product: product,
+              opcode: opcodes.set_warehousing_opcode
+            }).then(result => {
+              // console.log(result)
+              col = db.collection(machineID)
+
+              // var testFlag = true
+              // if (testFlag) { // for test
+              //   col.find({'_id': ObjectID(id)}).toArray(function (err, docs) {
+              //     if (err) {
+              //       data.warehousing = ''
+              //       socket.emit('setWarehousingFail', data)
+              //     } else {
+              //       if (docs.length === 0) {
+              //         console.log('no data')
+              //         data.warehousing = ''
+              //         socket.emit('setWarehousingFail', data)
+              //       } else {
+              //         doc = docs[0]
+              //         doc['warehousing'] = warehousing
+              //         doc['badNum'] = 100
+              //         doc['badRate'] = '87%'
+              //         socket.emit('setWarehousingSuccess', doc)
+              //         db.close()
+              //       }
+              //     }
+              //   })
+              // }
+
+              var timeout = 0
+
+              // query the change per second
+              var waitFunc = setInterval(function () {
+                timeout++
+                // doc['moldNum'] = moldNum
+
+                // maximum wait 30 secs, if timeout, just reply the origin record
+                if (timeout >= 5) {
+                  clearInterval(waitFunc)
+                  data.warehousing = doc.warehousing
+                  socket.emit('setWarehousingFail', data)
+                  db.close()
+                } else {
+                  // query the record and judge the product has changed or not yet
+                  col.find({'product': product}).limit(1).toArray(function (err, docs) {
+                    if (err) {
+                      data.warehousing = ''
+                      socket.emit('setWarehousingFail', data)
+                    } else {
+                      if (docs.length === 0) {
+                        console.log('no data')
+                        data.warehousing = ''
+                        socket.emit('setWarehousingFail', data)
+                      } else {
+                        doc = docs[0]
+                        newWarehousing = doc['warehousing']
+                        if (newWarehousing !== undefined && newWarehousing === Number(warehousing)) {
+                          clearInterval(waitFunc)
+                          socket.emit('setWarehousingSuccess', doc)
+                          db.close()
+                        }
+                      }
+                    }
+                  })
+                }
+              }, 1000)
+            })
+          }
+        }
+      })
+    }).catch(err => {
+      if (err) {
+        data.moldNum = ''
+        socket.emit('setWarehousingFail', data)
+      }
+    })
+  })
+
+  client.on('getTotalTargetCount', function (data) {
+    console.log(data)
+    var machineID = data.machineID // Object.keys(data)
+    var arr = data.orderArr
+    //var machines = {}
+    MongoClient.connect(config.dbUrl, function(err, clientData) {
+      if (err) {
+        socket.emit('getTotalTargetCountFail', data)
+        console.log('1')
+      } else {
+        var orderArr = []
+        if (arr.length > 0) {
+          arr.forEach(elm => {
+            orderArr.splice(orderArr.length, 0, {
+              'orderNumber': elm
+            })
+          })
+        }
+        // var promises = []
+        /* objKeys.forEach(objKey => {
+          var machineID = objKey
+          var orderArr = []
+          // var arr = data[machineID]
+          console.log(arr)
+          if (arr.length > 0) {
+            arr.forEach(elm => {
+              orderArr.splice(orderArr.length, 0, {
+                'orderNumber': elm
+              })
+            })
+            console.log(orderArr)
+console.log('machineID : ' + machineID)*/
+// getOrderFromEachMachineRecords(clientData, machineID, orderArr)
+            /* promises.push(getOrderFromEachMachineRecords(clientData, machineID, orderArr).then(results => {
+              machines[machineID] = results
+            })) */
+          //}
+        //})
+console.log(machines)
+        var resData = []
+        var ackData = {}
+        /* Promise.all(promises).then(() => {
+          var objKeys = Object.keys(machines)
+          console.log(machines)
+        }) */
+        console.log(orderArr)
+        clientData.db(config.dbName).collection(machineID).find({$or: orderArr}).toArray(function (err1, docs) {
+          if (err1) {
+            // reject(err)
+            console.log('2')
+            // socket.emit('getTotalTargetCountFail', data)
+          } else {
+            orderArr.forEach(elm => {
+              var subDocs = docs.filter(doc => {
+                if (((doc['machineStatusType'] === '半自動') || (doc['machineStatusType']  === '全自動')) && (elm.orderNumber === doc.orderNumber)) {
+                  return doc
+                }
+              })
+              console.log('subDocs')
+              //console.log(machineID)
+              //console.log(subDocs)
+              var total = subDocs.reduce(function (previousValue, currentValue, index, array) {
+                return previousValue + currentValue.moldCount  
+              }, 0)
+              var obj = {
+                totalTargetCount: total * subDocs[0].cavities
+              }
+              var warehousing = subDocs.reduce(function (previousValue, currentValue, index, array) {
+                return previousValue + currentValue.warehousing  
+              }, 0)
+              // records.push(obj)
+              resData.splice(
+                resData.length, 0, {
+                  machineID: machineID, 
+                  orderNumber: subDocs[0].orderNumber,
+                  total: total,
+                  totalTargetCount: total * subDocs[0].cavities,
+                  warehousing: warehousing
+                }
+              )
+            })
+            console.log(resData)
+            socket.emit('getTotalTargetCountSuccess', resData)
+          }
+        })
+      }
+    })
+  })
+})
+
+
