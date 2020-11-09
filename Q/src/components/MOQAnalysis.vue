@@ -5,12 +5,13 @@
       <div class="col-12 q-pl-xl text-white">
         <h4>{{type}}派單MOQ與入庫數量差異值分析表</h4>
         <h4 v-if="status !== null">({{status}})</h4>
-  </div>
-  </div>
-      <div class="row justify-center q-pt-xs q-pb-xs text-white bg-light-blue-8 full-width ">
+      </div>
+    </div>
+    <!-- 工具列 -->
+    <div class="row justify-center q-pt-xs q-pb-xs text-white bg-light-blue-8 full-width ">
       <q-btn outline glossy label='排序' icon="icon-svg52" @click="sortFalling = !sortFalling, sortEvent()"/>
       <q-btn-dropdown outline glossy label="顯示欄位" icon="icon-svg53">
-  <!-- dropdown content -->
+      <!-- dropdown content -->
         <q-list link>
           <q-item v-for="(col, index) in columns" v-bind:key="index">
             <q-item-main>
@@ -32,6 +33,7 @@
       <q-btn outline glossy label='列印' icon="icon-svg58" @click="print()"/>
       </div>
  <div class="column bg-white full-width no-margin">
+    <!-- xxx年 xx月   全廠      yyyy-mm-dd ~ yyyy-mm-dd -->
     <div class="row inline justify-center" >
       <h1>{{displayDate}}&nbsp;&nbsp;
     {{displayDepartment}}&nbsp;&nbsp;
@@ -39,6 +41,7 @@
     {{dateFrom}} ~ {{dateTo}}
     </h1>
     </div>
+    <!-- 搜尋欄 -->
     <div class="row justify-around q-pt-xs q-pb-xs">
     <div class="col-auto q-ml-sm q-mt-md">
     <q-btn :label="sortLabel0">
@@ -58,7 +61,7 @@
       <q-icon v-else name="arrow_upward" size="24px" />
     </q-btn>
     +
-        <q-btn :label="sortLabel1">
+    <q-btn :label="sortLabel1">
     <q-popup-edit v-model="sort1" buttons label-set="確定" label-cancel="取消" persistent @save="test7">
       <q-field count>
         <q-select
@@ -75,7 +78,7 @@
       <q-icon v-else name="arrow_upward" size="24px" />
     </q-btn>
     +
-        <q-btn :label="sortLabel2">
+    <q-btn :label="sortLabel2">
     <q-popup-edit v-model="sort2" buttons label-set="確定" label-cancel="取消" persistent @save="test8">
       <q-field count>
         <q-select
@@ -92,6 +95,7 @@
       <q-icon v-else name="arrow_upward" size="24px" />
     </q-btn>
     </div>
+    <!-- date interval -->
     <div class="row inline self-end q-mr-xl">
       <q-datetime v-model="selectedDate" class="no-margin" type="date" modal stack-label=" " @change="ttt(selectedDate)"/>
       <q-datetime v-model="selectedDateE" class="no-margin" type="date" modal stack-label=" " @change="ttt1(selectedDateE)"/>
@@ -103,6 +107,7 @@
       </q-select>-->
       </div>
     </div>
+    <!-- table -->
     <div class="row justify-center">
       <div class="col-md-12">
         <q-table
