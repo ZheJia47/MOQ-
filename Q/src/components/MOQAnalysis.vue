@@ -1,147 +1,159 @@
 <template>
   <div class="layout-padding">
-  <section class="content">
-     <div class="row inline bg-light-blue-7 full-width glossy">
-      <div class="col-12 q-pl-xl text-white">
-        <h4>{{type}}派單MOQ與入庫數量差異值分析表</h4>
-        <h4 v-if="status !== null">({{status}})</h4>
+    <section class="content">
+      <div class="row inline bg-light-blue-7 full-width glossy">
+        <div class="col-12 q-pl-xl text-white">
+          <h4>{{type}}派單MOQ與入庫數量差異值分析表</h4>
+          <h4 v-if="status !== null">({{status}})</h4>
+        </div>
       </div>
-    </div>
-    <!-- 工具列 -->
-    <div class="row justify-center q-pt-xs q-pb-xs text-white bg-light-blue-8 full-width ">
-      <q-btn outline glossy label='排序' icon="icon-svg52" @click="sortFalling = !sortFalling, sortEvent()"/>
-      <q-btn-dropdown outline glossy label="顯示欄位" icon="icon-svg53">
-      <!-- dropdown content -->
-        <q-list link>
-          <q-item v-for="(col, index) in columns" v-bind:key="index">
-            <q-item-main>
-              <q-checkbox v-model="columns[index]['required']" :label="columns[index]['label']" :value="col"/>
-            </q-item-main>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
-      <q-btn outline glossy label='色彩設定' icon="icon-svg54" @click="colorEn = !colorEn"/>
-      <q-btn outline glossy v-if="!$q.fullscreen.isActive" @click="rz()">
-        <q-icon name="fullscreen" size="36px" />
-        全銀幕
-      </q-btn>
-      <q-btn outline glossy v-else @click="srz()">
-        <q-icon name="fullscreen_exit" size="36px" />
-        退出全銀幕
-      </q-btn>
-      <q-btn outline glossy label='EXCEL匯出' icon="icon-svg57" @click="ExcelExport(rows, columns, '派單MOQ與入庫數量差異值分析表')"/>
-      <q-btn outline glossy label='列印' icon="icon-svg58" @click="print()"/>
+      <!-- 工具列 -->
+      <div class="row justify-center q-pt-xs q-pb-xs text-white bg-light-blue-8 full-width ">
+        <q-btn outline glossy label='排序' icon="icon-svg52" @click="sortFalling = !sortFalling, sortEvent()"/>
+        <q-btn-dropdown outline glossy label="顯示欄位" icon="icon-svg53">
+        <!-- dropdown content -->
+          <q-list link>
+            <q-item v-for="(col, index) in columns" v-bind:key="index">
+              <q-item-main>
+                <q-checkbox v-model="columns[index]['required']" :label="columns[index]['label']" :value="col"/>
+              </q-item-main>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
+        <q-btn outline glossy label='色彩設定' icon="icon-svg54" @click="colorEn = !colorEn"/>
+        <q-btn outline glossy v-if="!$q.fullscreen.isActive" @click="rz()">
+          <q-icon name="fullscreen" size="36px" />
+          全銀幕
+        </q-btn>
+        <q-btn outline glossy v-else @click="srz()">
+          <q-icon name="fullscreen_exit" size="36px" />
+          退出全銀幕
+        </q-btn>
+        <q-btn outline glossy label='EXCEL匯出' icon="icon-svg57" @click="ExcelExport(rows, columns, '派單MOQ與入庫數量差異值分析表')"/>
+        <q-btn outline glossy label='列印' icon="icon-svg58" @click="print()"/>
       </div>
- <div class="column bg-white full-width no-margin">
-    <!-- xxx年 xx月   全廠      yyyy-mm-dd ~ yyyy-mm-dd -->
-    <div class="row inline justify-center" >
-      <h1>{{displayDate}}&nbsp;&nbsp;
-    {{displayDepartment}}&nbsp;&nbsp;
-    {{displayZone}}&nbsp;&nbsp;
-    {{dateFrom}} ~ {{dateTo}}
-    </h1>
-    </div>
-    <!-- 搜尋欄 -->
-    <div class="row justify-around q-pt-xs q-pb-xs">
-    <div class="col-auto q-ml-sm q-mt-md">
-    <q-btn :label="sortLabel0">
-    <q-popup-edit v-model="sort0" buttons label-set="確定" label-cancel="取消" persistent @save="test6">
-      <q-field count>
-        <q-select
-          type="text"
-          v-model="sort0"
-          :options="sortList"
-          error
-        />
-      </q-field>
-    </q-popup-edit>
-    </q-btn>
-    <q-btn @click="sortAsc0=!sortAsc0, sortEvent()">
-      <q-icon v-if="sortAsc0" name="arrow_downward" size="24px" />
-      <q-icon v-else name="arrow_upward" size="24px" />
-    </q-btn>
-    +
-    <q-btn :label="sortLabel1">
-    <q-popup-edit v-model="sort1" buttons label-set="確定" label-cancel="取消" persistent @save="test7">
-      <q-field count>
-        <q-select
-          type="text"
-          v-model="sort1"
-          :options="sortList"
-          error
-        />
-      </q-field>
-    </q-popup-edit>
-    </q-btn>
-    <q-btn @click="sortAsc1=!sortAsc1, sortEvent()">
-      <q-icon v-if="sortAsc1" name="arrow_downward" size="24px" />
-      <q-icon v-else name="arrow_upward" size="24px" />
-    </q-btn>
-    +
-    <q-btn :label="sortLabel2">
-    <q-popup-edit v-model="sort2" buttons label-set="確定" label-cancel="取消" persistent @save="test8">
-      <q-field count>
-        <q-select
-          type="text"
-          v-model="sort2"
-          :options="sortList"
-          error
-        />
-      </q-field>
-    </q-popup-edit>
-    </q-btn>
-    <q-btn @click="sortAsc2=!sortAsc2, sortEvent()">
-      <q-icon v-if="sortAsc2" name="arrow_downward" size="24px" />
-      <q-icon v-else name="arrow_upward" size="24px" />
-    </q-btn>
-    </div>
-    <!-- date interval -->
-    <div class="row inline self-end q-mr-xl">
-      <q-datetime v-model="selectedDate" class="no-margin" type="date" modal stack-label=" " @change="ttt(selectedDate)"/>
-      <q-datetime v-model="selectedDateE" class="no-margin" type="date" modal stack-label=" " @change="ttt1(selectedDateE)"/>
-      <!--<q-select color="white" v-model="departmentSelected" class="no-margin" :options="departmentArr" stack-label=" " :display-value="departmentSelected" toggle error  @input="departmentSelFunc(departmentSelected)">
-      </q-select>
-      <q-select color="white" v-model="zoneSelected" class="no-margin" :options="zoneArr" stack-label=" " :display-value="zoneSelected" toggle error @input="zoneSelFunc(zoneSelected)">
-      </q-select>
-      <q-select color="white" v-model="machineIDSelected" class="no-margin" :options="machineIDArrQSel" stack-label=" " :display-value="machineIDSelected" toggle error>
-      </q-select>-->
+      <div class="column bg-white full-width no-margin">
+        <!-- xxx年 xx月   全廠      yyyy-mm-dd ~ yyyy-mm-dd -->
+        <div class="row inline justify-center" >
+          <h1>{{displayDate}}&nbsp;&nbsp;
+            {{displayDepartment}}&nbsp;&nbsp;
+            {{displayZone}}&nbsp;&nbsp;
+            {{dateFrom}} ~ {{dateTo}}
+          </h1>
+        </div>
+        <!-- 搜尋欄 ################################################# -->
+        <div class="row justify-around q-pt-xs q-pb-xs">
+          <!-- use q-input to search -->
+          <q-input
+            v-model="search_begin"
+            placeholder="開始"
+            @keyup.enter="Test_input"
+          />
+          <!-- sort0 -->
+          <div class="col-auto q-ml-sm q-mt-md">
+            <q-btn :label="sortLabel0">
+              <q-popup-edit v-model="sort0" buttons label-set="確定" label-cancel="取消" persistent @save="test6">
+                <!-- <q-field count> -->
+                  <q-select
+                    type="text"
+                    v-model="sort0"
+                    :options="sortList"
+                    error
+                  />
+                  <!-- input search bar -->
+                  <!-- <q-field label='開始'> -->
+                  <!-- available event for input: oninput onchange @change-->
+              </q-popup-edit>
+            </q-btn>
+            <!-- 遞增遞減排序 -->
+            <q-btn @input="sortAsc0=!sortAsc0, sortEvent()">
+              <q-icon v-if="sortAsc0" name="arrow_downward" size="24px" />
+              <q-icon v-else name="arrow_upward" size="24px" />
+            </q-btn>
+            <!-- + -->
+            <!-- sort1 -->
+            <!-- <q-btn :label="sortLabel1">
+              <q-popup-edit v-model="sort1" buttons label-set="確定" label-cancel="取消" persistent @save="test7">
+                <q-field count>
+                  <q-select
+                    type="text"
+                    v-model="sort1"
+                    :options="sortList"
+                    error
+                  />
+                </q-field>
+              </q-popup-edit>
+            </q-btn>
+            <q-btn @click="sortAsc1=!sortAsc1, sortEvent()">
+              <q-icon v-if="sortAsc1" name="arrow_downward" size="24px" />
+              <q-icon v-else name="arrow_upward" size="24px" />
+            </q-btn> -->
+            <!-- + -->
+            <!-- sort2 -->
+            <!-- <q-btn :label="sortLabel2">
+              <q-popup-edit v-model="sort2" buttons label-set="確定" label-cancel="取消" persistent @save="test8">
+                <q-field count>
+                  <q-select
+                    type="text"
+                    v-model="sort2"
+                    :options="sortList"
+                    error
+                  />
+                </q-field>
+              </q-popup-edit>
+            </q-btn>
+            <q-btn @click="sortAsc2=!sortAsc2, sortEvent()">
+              <q-icon v-if="sortAsc2" name="arrow_downward" size="24px" />
+              <q-icon v-else name="arrow_upward" size="24px" />
+            </q-btn> -->
+          </div>
+          <!-- date interval ################################################# -->
+          <div class="row inline self-end q-mr-xl">
+            <q-datetime v-model="selectedDate" class="no-margin" type="date" modal stack-label=" " @change="ttt(selectedDate)"/>
+            <q-datetime v-model="selectedDateE" class="no-margin" type="date" modal stack-label=" " @change="ttt1(selectedDateE)"/>
+            <!--<q-select color="white" v-model="departmentSelected" class="no-margin" :options="departmentArr" stack-label=" " :display-value="departmentSelected" toggle error  @input="departmentSelFunc(departmentSelected)">
+            </q-select>
+            <q-select color="white" v-model="zoneSelected" class="no-margin" :options="zoneArr" stack-label=" " :display-value="zoneSelected" toggle error @input="zoneSelFunc(zoneSelected)">
+            </q-select>
+            <q-select color="white" v-model="machineIDSelected" class="no-margin" :options="machineIDArrQSel" stack-label=" " :display-value="machineIDSelected" toggle error>
+            </q-select>-->
+          </div>
+        </div>
+        <!-- table ################################################# -->
+        <div class="row justify-center">
+          <div class="col-md-12">
+            <q-table
+              :data="rows"
+              :columns="columns"
+              :rows-per-page-options="config.pagination.options"
+              :pagination.sync="serverPagination"
+              separator="cell"
+              :dense="true"
+              row-key="name"
+              color="amber"
+              @refresh="refresh"
+              @rowclick="rowclick"
+              :visible-columns="visibleColumns"
+            >
+              <q-tr slot="body" slot-scope="props" :props="props">
+                <q-td v-for="col in columns" v-bind:key="col.name" v-if="col.name==='deadlineWarehousing'" :props="props">
+                  <!--<div v-if="colorEn && moment(props.row[col.name], 'YYYY/M/DD').isAfter(moment(props.row['deadline'], 'YYYY/M/DD').add(colorConditionArr[7][0], 'd'))" :style="colorArr[7]">-->
+                  <div v-if="colorEn && momentTest(props, col)" :style="colorArr[7]">
+                    <span v-if="blink[7]" class="blink">{{props.row[col.name]}}</span>
+                    <span v-else>{{props.row[col.name]}}</span>
+                  </div>
+                  <div v-else>
+                    {{props.row[col.name]}}
+                  </div>
+                </q-td>
+                <q-td :key="col.name" v-else>
+                  {{props.row[col.name]}}
+                </q-td>
+              </q-tr>
+            </q-table>
+          </div>
+        </div>
       </div>
-    </div>
-    <!-- table -->
-    <div class="row justify-center">
-      <div class="col-md-12">
-        <q-table
-          :data="rows"
-          :columns="columns"
-          :rows-per-page-options="config.pagination.options"
-          :pagination.sync="serverPagination"
-          separator="cell"
-          :dense="true"
-          row-key="name"
-          color="amber"
-          @refresh="refresh"
-          @rowclick="rowclick"
-          :visible-columns="visibleColumns"
-        >
-        <q-tr slot="body" slot-scope="props" :props="props">
-          <q-td v-for="col in columns" v-bind:key="col.name" v-if="col.name==='deadlineWarehousing'" :props="props">
-            <!--<div v-if="colorEn && moment(props.row[col.name], 'YYYY/M/DD').isAfter(moment(props.row['deadline'], 'YYYY/M/DD').add(colorConditionArr[7][0], 'd'))" :style="colorArr[7]">-->
-              <div v-if="colorEn && momentTest(props, col)" :style="colorArr[7]">
-              <span v-if="blink[7]" class="blink">{{props.row[col.name]}}</span>
-              <span v-else>{{props.row[col.name]}}</span>
-            </div>
-            <div v-else>
-              {{props.row[col.name]}}
-            </div>
-          </q-td>
-          <q-td :key="col.name" v-else>
-            {{props.row[col.name]}}
-          </q-td>
-        </q-tr>
-        </q-table>
-      </div>
-      </div>
-    </div>
     </section>
   </div>
 </template>
@@ -150,7 +162,7 @@ import $ from 'jquery'
 import moment from 'moment'
 import 'moment-duration-format'
 import XLSX from 'XLSX'
-export default {
+export default { // 匯出變數
   name: 'Tables',
   props: [
     'period',
@@ -174,6 +186,7 @@ export default {
   ],
   data: function () {
     return {
+      search_begin: '',
       // ------------------------------機台編號用
       machineIDArrQSel: [],
       machineIDArr: [],
@@ -748,6 +761,10 @@ export default {
       this.selectedDate = from
       this.selectedDateE = to
       renderTable(this.columns, this.rows, this.machineIDArr, from, to, this.$q.loading)
+    },
+    // test input event
+    Test_input () {
+      alert(this.search_begin)
     }
   }
 }
